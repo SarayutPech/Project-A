@@ -166,6 +166,20 @@ public class ProceduralMapGenerator : MonoBehaviour
     // Singleton: group รวมทุก object ที่สร้าง (ground, markers, scatter) มีได้ group เดียวเสมอ
     public static GameObject GeneratedRoot { get; private set; }
 
+    // อ้างอิงแต่ละ layer ที่สร้างรอบล่าสุด (null ถ้า layer นั้นไม่ได้สร้าง) ให้ script อื่นเช่น MapBuildAnimator ใช้
+    public GameObject GroundObject { get; private set; }
+    public GameObject PitObject { get; private set; }
+    public GameObject WaterObject { get; private set; }
+    public GameObject UndersideObject { get; private set; }
+    public GameObject StartMarker { get; private set; }
+    public GameObject EndMarker { get; private set; }
+    public Transform ScatterContainer { get; private set; }
+    public Vector3 StartPosition { get; private set; }
+    public Vector3 EndPosition { get; private set; }
+
+    // เรียกหลัง generate เสร็จทุกครั้ง (ทั้งใน Editor และตอน Play)
+    public event System.Action MapGenerated;
+
     private void Awake()
     {
         if (!RegisterInstance()) return;
@@ -276,6 +290,11 @@ public class ProceduralMapGenerator : MonoBehaviour
 
         Transform root = ResetGeneratedRoot();
 
+        GroundObject = PitObject = WaterObject = UndersideObject = StartMarker = EndMarker = null;
+        ScatterContainer = null;
+        StartPosition = CellToWorld(startCell);
+        EndPosition = CellToWorld(endCell);
+
         BuildGroundMesh(root);
         if (buildUnderside) BuildUnderside(root);
 
@@ -289,6 +308,8 @@ public class ProceduralMapGenerator : MonoBehaviour
             endPos.y = transform.position.y;
             transform.position = endPos;
         }
+
+        MapGenerated?.Invoke();
     }
 
     // ---------- Generated Root (Singleton group) ----------
@@ -559,16 +580,46 @@ public class ProceduralMapGenerator : MonoBehaviour
         var vertices = new List<Vector3>();
         var uvs = new List<Vector2>();
         var triangles = new List<int>();
+        var pitVertices = new List<Vector3>();
+        var pitUvs = new List<Vector2>();
+        var pitTriangles = new List<int>();
         var waterVertices = new List<Vector3>();
         var waterUvs = new List<Vector2>();
         var waterTriangles = new List<int>();
 
         if (addNoiseHoles && holeMeshResolution > 1 && _holes.Count > 0)
-            BuildSubdividedGeometry(vertices, uvs, triangles, waterVertices, waterUvs, waterTriangles);
+            BuildSubdividedGeometry(vertices, uvs, triangles, pitVertices, pitUvs, pitTriangles, waterVertices, waterUvs, waterTriangles);
         else
             BuildSimpleGeometry(vertices, uvs, triangles);
 
-        Mesh mesh = new Mesh { name = "Generated Ground" };
+        GroundObject = CreateGroundPart(root, "Generated Ground", vertices, uvs, triangles);
+
+        // ก้นหลุม + ผนังแยกเป็นอีก object (material เดียวกับพื้น) จะได้ animate/ซ่อนแยกจากผิวพื้นได้
+        if (pitVertices.Count > 0) PitObject = CreateGroundPart(root, "Pond Pits", pitVertices, pitUvs, pitTriangles);
+
+        if (waterVertices.Count > 0) BuildWater(root, waterVertices, waterUvs, waterTriangles);
+    }
+
+    private GameObject CreateGroundPart(Transform root, string objName, List<Vector3> vertices, List<Vector2> uvs, List<int> triangles)
+    {
+        Mesh mesh = CreateMesh(objName, vertices, uvs, triangles);
+
+        var obj = new GameObject(objName);
+        obj.transform.SetParent(root, false);
+
+        obj.AddComponent<MeshFilter>().sharedMesh = mesh;
+        var meshRenderer = obj.AddComponent<MeshRenderer>();
+        if (groundMaterial != null) meshRenderer.sharedMaterial = groundMaterial;
+
+        if (addCollider) obj.AddComponent<MeshCollider>().sharedMesh = mesh;
+
+        if (markGeneratedStatic) obj.isStatic = true;
+        return obj;
+    }
+
+    private static Mesh CreateMesh(string meshName, List<Vector3> vertices, List<Vector2> uvs, List<int> triangles)
+    {
+        Mesh mesh = new Mesh { name = meshName };
         if (vertices.Count > 65535)
             mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
 
@@ -578,25 +629,7 @@ public class ProceduralMapGenerator : MonoBehaviour
         mesh.RecalculateNormals();
         mesh.RecalculateBounds();
         mesh.RecalculateTangents();
-
-        var groundObj = new GameObject("Generated Ground");
-        groundObj.transform.SetParent(root, false);
-
-        var meshFilter = groundObj.AddComponent<MeshFilter>();
-        var meshRenderer = groundObj.AddComponent<MeshRenderer>();
-
-        meshFilter.sharedMesh = mesh;
-        if (groundMaterial != null) meshRenderer.sharedMaterial = groundMaterial;
-
-        if (addCollider)
-        {
-            var collider = groundObj.AddComponent<MeshCollider>();
-            collider.sharedMesh = mesh;
-        }
-
-        if (markGeneratedStatic) groundObj.isStatic = true;
-
-        if (waterVertices.Count > 0) BuildWater(root, waterVertices, waterUvs, waterTriangles);
+        return mesh;
     }
 
     // ---------- Island Underside: รายละเอียดการสร้าง mesh อยู่ใน IslandUndersideBuilder ----------
@@ -630,6 +663,7 @@ public class ProceduralMapGenerator : MonoBehaviour
         if (undersideCollider) obj.AddComponent<MeshCollider>().sharedMesh = mesh;
 
         if (markGeneratedStatic) obj.isStatic = true;
+        UndersideObject = obj;
     }
 
     private Material GetUndersideMaterial()
@@ -652,16 +686,7 @@ public class ProceduralMapGenerator : MonoBehaviour
 
     private void BuildWater(Transform root, List<Vector3> vertices, List<Vector2> uvs, List<int> triangles)
     {
-        Mesh mesh = new Mesh { name = "Generated Water" };
-        if (vertices.Count > 65535)
-            mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-
-        mesh.SetVertices(vertices);
-        mesh.SetUVs(0, uvs);
-        mesh.SetTriangles(triangles, 0);
-        mesh.RecalculateNormals();
-        mesh.RecalculateBounds();
-        mesh.RecalculateTangents();
+        Mesh mesh = CreateMesh("Generated Water", vertices, uvs, triangles);
 
         var waterObj = new GameObject("Pond Water");
         waterObj.transform.SetParent(root, false);
@@ -689,6 +714,7 @@ public class ProceduralMapGenerator : MonoBehaviour
         }
 
         if (markGeneratedStatic) waterObj.isStatic = true;
+        WaterObject = waterObj;
     }
 
     private Material GetWaterMaterial()
@@ -727,11 +753,11 @@ public class ProceduralMapGenerator : MonoBehaviour
         startPos.y = transform.position.y;
         endPos.y = transform.position.y;
 
-        CreateMarker(root, "Start Marker", startMarkerPrefab, startPos, new Color(0.2f, 0.9f, 0.3f));
-        CreateMarker(root, "End Marker", endMarkerPrefab, endPos, new Color(0.9f, 0.25f, 0.25f));
+        StartMarker = CreateMarker(root, "Start Marker", startMarkerPrefab, startPos, new Color(0.2f, 0.9f, 0.3f));
+        EndMarker = CreateMarker(root, "End Marker", endMarkerPrefab, endPos, new Color(0.9f, 0.25f, 0.25f));
     }
 
-    private void CreateMarker(Transform root, string markerName, GameObject prefab, Vector3 position, Color fallbackColor)
+    private GameObject CreateMarker(Transform root, string markerName, GameObject prefab, Vector3 position, Color fallbackColor)
     {
         GameObject marker;
         if (prefab != null)
@@ -766,6 +792,7 @@ public class ProceduralMapGenerator : MonoBehaviour
         }
 
         marker.name = markerName;
+        return marker;
     }
 
     // ---------- Object Scatter Preview ----------
@@ -776,6 +803,7 @@ public class ProceduralMapGenerator : MonoBehaviour
 
         var scatterContainer = new GameObject("Scattered Objects");
         scatterContainer.transform.SetParent(root, false);
+        ScatterContainer = scatterContainer.transform;
 
         // เก็บ cell ที่ใช้ไม่ได้ไว้ก่อน (จุด start/end กับ cell ที่โดน noise hole)
         HashSet<Vector2Int> excluded = new HashSet<Vector2Int> { startCell, endCell };
@@ -905,8 +933,9 @@ public class ProceduralMapGenerator : MonoBehaviour
     }
 
     // path ละเอียด: แบ่งแต่ละ cell เป็น sub-quad ย่อย เพื่อให้ตัดรูขนาดเล็กกว่า stepSize ได้
-    // ถ้าเปิด holesAsPonds จะเติมพื้นก้นหลุม + ผนัง (ลง vertices) และผิวน้ำ (ลง water lists) แทนการเจาะทะลุ
+    // ถ้าเปิด holesAsPonds จะเติมพื้นก้นหลุม + ผนัง (ลง pit lists) และผิวน้ำ (ลง water lists) แทนการเจาะทะลุ
     private void BuildSubdividedGeometry(List<Vector3> vertices, List<Vector2> uvs, List<int> triangles,
+        List<Vector3> pitVertices, List<Vector2> pitUvs, List<int> pitTriangles,
         List<Vector3> waterVertices, List<Vector2> waterUvs, List<int> waterTriangles)
     {
         int res = Mathf.Max(1, holeMeshResolution);
@@ -948,7 +977,7 @@ public class ProceduralMapGenerator : MonoBehaviour
             if (!ponds) continue; // เจาะทะลุเหมือนเดิม
 
             center.y = PitFloorY;
-            AddQuad(vertices, uvs, triangles, center, subHalf);
+            AddQuad(pitVertices, pitUvs, pitTriangles, center, subHalf);
 
             center.y = WaterY;
             AddQuad(waterVertices, waterUvs, waterTriangles, center, subHalf);
@@ -957,7 +986,7 @@ public class ProceduralMapGenerator : MonoBehaviour
             foreach (var d in Directions4)
             {
                 if (holeSubs.Contains(g + d)) continue;
-                AddWall(vertices, uvs, triangles, SubToWorld(g), d, subHalf, pitDepth);
+                AddWall(pitVertices, pitUvs, pitTriangles, SubToWorld(g), d, subHalf, pitDepth);
             }
         }
     }
