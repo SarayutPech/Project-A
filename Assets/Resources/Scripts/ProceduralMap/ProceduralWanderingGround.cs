@@ -70,6 +70,12 @@ public class ProceduralMapGenerator : MonoBehaviour
     public Material waterMaterial;
     [Tooltip("ชื่อ Unity Layer ที่ใช้กับน้ำ (Water เป็น layer มาตรฐานของ Unity) ถ้าไม่มี layer นี้จะใช้ Default")]
     public string waterLayerName = "Water";
+    [Tooltip("สร้างกำแพงล่องหนรอบขอบบ่อ/รู กันเดินลงน้ำ (PlayerMovement จะทะลุกำแพงนี้ได้ตอนกระโดด/dash)")]
+    public bool blockWalkingIntoHoles = true;
+    [Tooltip("ความสูงกำแพงรอบบ่อเหนือผิวพื้น")]
+    [Min(0.1f)] public float holeBlockerHeight = 2f;
+    [Tooltip("ความหนากำแพงรอบบ่อ (กินเข้ามาฝั่งพื้น) บางไว้จะได้ยืนชิดขอบบ่อได้")]
+    [Min(0.02f)] public float holeBlockerThickness = 0.15f;
 
     [Header("Island Underside (ใต้พื้นให้ดูเป็นเกาะลอย)")]
     public bool buildUnderside = true;
@@ -89,6 +95,12 @@ public class ProceduralMapGenerator : MonoBehaviour
     [Tooltip("จำนวน quad ต่อ 1 cell ยิ่งมากยิ่งละเอียด")]
     [Range(1, 4)] public int undersideResolution = 2;
     public bool undersideCollider = false;
+
+    [Header("Map Boundary (กำแพงล่องหนกันตกขอบ)")]
+    [Tooltip("สร้าง BoxCollider ล่องหนรอบขอบแผนที่ กัน player เดินตก map")]
+    public bool buildBoundaryWalls = true;
+    [Min(0.1f)] public float boundaryWallHeight = 3f;
+    [Min(0.05f)] public float boundaryWallThickness = 0.5f;
 
     [Header("Scatter Optimization")]
     [Tooltip("ตั้ง Static Flag ให้ Ground/Underside/Water/Scattered Objects ช่วย Occlusion Culling เสมอ และช่วย Static Batching ตอน Build ถ้า generate ทิ้งไว้ใน Editor โดยไม่ regenerate ซ้ำตอน runtime (ถ้า regenerate ทุกครั้งที่ Awake ตอน Play จะไม่ได้ static batching เพราะ object เพิ่งถูกสร้างหลัง Build ไปแล้ว ต้องพึ่ง Combine Scatter Meshes แทน)")]
@@ -153,6 +165,7 @@ public class ProceduralMapGenerator : MonoBehaviour
     private readonly List<HoleCircle> _holes = new List<HoleCircle>();
     private readonly HashSet<Vector2Int> _pathVisited = new HashSet<Vector2Int>();
     private readonly List<Vector2Int> _pathStack = new List<Vector2Int>();
+    private readonly HashSet<Vector2Int> _holeSubCells = new HashSet<Vector2Int>(); // sub-cell ที่เป็นรู/บ่อ รอบล่าสุด
     private const string RootName = "Generated Map";
 
     private float PitFloorY => -pitDepth;
@@ -171,11 +184,15 @@ public class ProceduralMapGenerator : MonoBehaviour
     public GameObject PitObject { get; private set; }
     public GameObject WaterObject { get; private set; }
     public GameObject UndersideObject { get; private set; }
+    public GameObject BoundaryObject { get; private set; }
+    public GameObject HoleBlockerObject { get; private set; }
     public GameObject StartMarker { get; private set; }
     public GameObject EndMarker { get; private set; }
     public Transform ScatterContainer { get; private set; }
     public Vector3 StartPosition { get; private set; }
     public Vector3 EndPosition { get; private set; }
+    // ขอบเขตผิวพื้นทั้งแผนที่ (y = 0) ไว้ให้กล้องหาจุดกลาง/ขนาด map
+    public Bounds MapBounds { get; private set; }
 
     // เรียกหลัง generate เสร็จทุกครั้ง (ทั้งใน Editor และตอน Play)
     public event System.Action MapGenerated;
@@ -290,13 +307,17 @@ public class ProceduralMapGenerator : MonoBehaviour
 
         Transform root = ResetGeneratedRoot();
 
-        GroundObject = PitObject = WaterObject = UndersideObject = StartMarker = EndMarker = null;
+        GroundObject = PitObject = WaterObject = UndersideObject = BoundaryObject = HoleBlockerObject = StartMarker = EndMarker = null;
         ScatterContainer = null;
         StartPosition = CellToWorld(startCell);
         EndPosition = CellToWorld(endCell);
+        MapBounds = ComputeMapBounds();
 
         BuildGroundMesh(root);
         if (buildUnderside) BuildUnderside(root);
+        if (buildBoundaryWalls)
+            BoundaryObject = MapBoundaryBuilder.Build(_cells, stepSize, boundaryWallHeight, boundaryWallThickness, root);
+        if (blockWalkingIntoHoles) BuildHoleBlockers(root);
 
         if (showStartEndMarkers) PlaceMarkers(root, startCell, endCell);
         ScatterObjects(root, startCell, endCell);
@@ -310,6 +331,24 @@ public class ProceduralMapGenerator : MonoBehaviour
         }
 
         MapGenerated?.Invoke();
+    }
+
+    private Bounds ComputeMapBounds()
+    {
+        if (_cells.Count == 0) return new Bounds(Vector3.zero, Vector3.zero);
+
+        int minX = int.MaxValue, maxX = int.MinValue, minZ = int.MaxValue, maxZ = int.MinValue;
+        foreach (var c in _cells)
+        {
+            minX = Mathf.Min(minX, c.x); maxX = Mathf.Max(maxX, c.x);
+            minZ = Mathf.Min(minZ, c.y); maxZ = Mathf.Max(maxZ, c.y);
+        }
+
+        float half = stepSize * 0.5f;
+        var bounds = new Bounds();
+        bounds.SetMinMax(new Vector3(minX * stepSize - half, 0f, minZ * stepSize - half),
+                         new Vector3(maxX * stepSize + half, 0f, maxZ * stepSize + half));
+        return bounds;
     }
 
     // ---------- Generated Root (Singleton group) ----------
@@ -580,6 +619,7 @@ public class ProceduralMapGenerator : MonoBehaviour
         var vertices = new List<Vector3>();
         var uvs = new List<Vector2>();
         var triangles = new List<int>();
+        _holeSubCells.Clear();
         var pitVertices = new List<Vector3>();
         var pitUvs = new List<Vector2>();
         var pitTriangles = new List<int>();
@@ -630,6 +670,27 @@ public class ProceduralMapGenerator : MonoBehaviour
         mesh.RecalculateBounds();
         mesh.RecalculateTangents();
         return mesh;
+    }
+
+    // ---------- Hole Blockers: กำแพงล่องหนล้อมบ่อ/รู ตาม sub-cell ที่ BuildSubdividedGeometry เจาะไว้ ----------
+
+    private void BuildHoleBlockers(Transform root)
+    {
+        if (_holeSubCells.Count == 0) return;
+
+        int res = Mathf.Max(1, holeMeshResolution);
+        float subSize = stepSize / res;
+        float originOffset = subSize * 0.5f - stepSize * 0.5f; // กลาง sub-cell (0,0) เทียบกับกลาง cell (0,0)
+
+        HoleBlockerObject = MapBoundaryBuilder.Build(_holeSubCells, new MapBoundaryBuilder.Settings
+        {
+            name = "Hole Blockers",
+            cellSize = subSize,
+            origin = new Vector2(originOffset, originOffset),
+            bottomY = Mathf.Min(PitFloorY, 0f) - 0.5f,
+            topY = holeBlockerHeight,
+            thickness = holeBlockerThickness,
+        }, root);
     }
 
     // ---------- Island Underside: รายละเอียดการสร้าง mesh อยู่ใน IslandUndersideBuilder ----------
@@ -959,7 +1020,7 @@ public class ProceduralMapGenerator : MonoBehaviour
                 {
                     var g = new Vector2Int(cell.x * res + sx, cell.y * res + sz);
                     subCells.Add(g);
-                    if (IsInsideHole(SubToWorld(g))) holeSubs.Add(g);
+                    if (IsInsideHole(SubToWorld(g))) { holeSubs.Add(g); _holeSubCells.Add(g); }
                 }
             }
         }
