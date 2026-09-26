@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7e09e28f11787e145934b8daee2b722d, type: 3}
   m_Name: MapBuildAnimationConfig
   m_EditorClassIdentifier: Assembly-CSharp::MapBuildAnimationConfig
-  speed: 1
+  speed: 2
   startDelay: 0.3
   steps:
   - layer: 0
