@@ -227,6 +227,7 @@ public class MapBuildAnimator : MonoBehaviour
             case MapLayer.Markers:
                 AddIfExists(transforms, gen.StartMarker);
                 AddIfExists(transforms, gen.EndMarker);
+                AddIfExists(transforms, gen.WarpPortal);
                 break;
             case MapLayer.Objects:
                 if (gen.ScatterContainer != null)

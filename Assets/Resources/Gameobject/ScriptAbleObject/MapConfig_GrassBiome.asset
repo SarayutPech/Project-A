@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 75e0c6802c764fb7a8eb87f29a03bab0, type: 3}
+  m_Name: MapConfig_GrassBiome
+  m_EditorClassIdentifier: Assembly-CSharp::ProceduralMapConfig
+  stepSize: 3
+  fillRadius: 3
+  edgeFillChance: 0.78
+  groundMaterial: {fileID: 2100000, guid: 896115c474552114d95bf55bc5628558, type: 2}
+  textureWorldSize: 5
+  addCollider: 1
+  walkSteps: 500
+  moveTransformToEnd: 1
+  showStartEndMarkers: 1
+  startMarkerPrefab: {fileID: 0}
+  endMarkerPrefab: {fileID: 0}
+  markerSize: 1.5
+  warpPortalPrefab: {fileID: 3108726852480893148, guid: 1e03fc450638794459b3b6c6af2f7870, type: 3}
+  warpPortalOffset: {x: 0, y: 6, z: 0}
+  scatterObjects: 1
+  scatterPositionJitter: 1
+  scatterCategories:
+  - categoryName: Obstacle
+    color: {r: 1, g: 0, b: 0, a: 1}
+    count: 0
+    prefabVariants: []
+    cubeScale: 1
+    randomizeSize: 0
+    sizeRange: {x: 0.8, y: 1.2}
+    randomizeHeight: 0
+    heightRange: {x: 0.8, y: 1.2}
+    randomizeRotation: 0
+    rotationRange: {x: 0, y: 360}
+  - categoryName: Trees
+    color: {r: 0, g: 1, b: 0, a: 1}
+    count: 20
+    prefabVariants:
+    - {fileID: 8960664847887249209, guid: 9b6ef43f6d834f141a6740192914730f, type: 3}
+    cubeScale: 1
+    randomizeSize: 1
+    sizeRange: {x: 1.5, y: 3}
+    randomizeHeight: 1
+    heightRange: {x: 2, y: 3.5}
+    randomizeRotation: 1
+    rotationRange: {x: 0, y: 360}
+  - categoryName: Item
+    color: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+    count: 0
+    prefabVariants: []
+    cubeScale: 1
+    randomizeSize: 0
+    sizeRange: {x: 0.8, y: 1.2}
+    randomizeHeight: 0
+    heightRange: {x: 0.8, y: 1.2}
+    randomizeRotation: 0
+    rotationRange: {x: 0, y: 360}
+  smoothEdges: 1
+  smoothIterations: 5
+  smoothThreshold: 3
+  connectIslands: 1
+  fillEnclosedHoles: 1
+  addNoiseHoles: 1
+  holeMeshResolution: 11
+  holeDensity: 0.001
+  holeRadiusRange: {x: 15, y: 10}
+  holeEdgeJitter: 0.37
+  holesAsPonds: 1
+  pitDepth: 1
+  waterSurfaceDepth: 0.25
+  waterMaterial: {fileID: 0}
+  waterLayerName: Water
+  walkableWater: 1
+  waterWalkDepth: 0.5
+  waterWalkRampWidth: 1
+  holeClearanceAroundStartEnd: 2
+  blockWalkingIntoHoles: 0
+  holeBlockerHeight: 2
+  holeBlockerThickness: 0.15
+  buildUnderside: 1
+  undersideType: 1
+  undersideMaterial: {fileID: 2100000, guid: 896115c474552114d95bf55bc5628558, type: 2}
+  undersideMaxDepth: 1
+  undersideEdgeLip: 0.6
+  undersideTaperDistance: 5
+  undersideNoise: 1.11
+  undersideNoiseScale: 0.25
+  undersideResolution: 4
+  undersideCollider: 1
+  buildBoundaryWalls: 1
+  boundaryWallHeight: 3
+  boundaryWallThickness: 0.5
+  markGeneratedStatic: 1
+  combineScatterMeshes: 0
+  disableCollidersAfterCombine: 0

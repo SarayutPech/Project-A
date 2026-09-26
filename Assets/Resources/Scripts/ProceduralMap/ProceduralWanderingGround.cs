@@ -5,112 +5,84 @@ using System.Collections.Generic;
 [ExecuteAlways]
 public class ProceduralMapGenerator : MonoBehaviour
 {
-    [Header("Grid / Step")]
-    [Min(0.1f)] public float stepSize = 3f;
-    [Range(0, 4)] public int fillRadius = 1;
-    [Range(0f, 1f)] public float edgeFillChance = 0.6f;
+    [Tooltip("ค่าตั้งของแผนที่ (สร้างจาก Create > Procedural Map > Map Config) ถ้าเว้นว่างจะใช้ค่าเริ่มต้น")]
+    public ProceduralMapConfig config;
 
-    [Header("Ground Appearance")]
-    public Material groundMaterial;
-    [Min(0.01f)] public float textureWorldSize = 1f;
-    public bool addCollider = true;
+    private float stepSize => Config.stepSize;
+    private int fillRadius => Config.fillRadius;
+    private float edgeFillChance => Config.edgeFillChance;
+    private Material groundMaterial => Config.groundMaterial;
+    private float textureWorldSize => Config.textureWorldSize;
+    private bool addCollider => Config.addCollider;
+    private int walkSteps => Config.walkSteps;
+    private bool moveTransformToEnd => Config.moveTransformToEnd;
+    private bool showStartEndMarkers => Config.showStartEndMarkers;
+    private GameObject startMarkerPrefab => Config.startMarkerPrefab;
+    private GameObject endMarkerPrefab => Config.endMarkerPrefab;
+    private float markerSize => Config.markerSize;
+    private GameObject warpPortalPrefab => Config.warpPortalPrefab;
+    private Vector3 warpPortalOffset => Config.warpPortalOffset;
+    private bool scatterObjects => Config.scatterObjects;
+    private float scatterPositionJitter => Config.scatterPositionJitter;
+    private List<ScatterCategory> scatterCategories => Config.scatterCategories;
+    private bool smoothEdges => Config.smoothEdges;
+    private int smoothIterations => Config.smoothIterations;
+    private int smoothThreshold => Config.smoothThreshold;
+    private bool connectIslands => Config.connectIslands;
+    private bool fillEnclosedHoles => Config.fillEnclosedHoles;
+    private bool addNoiseHoles => Config.addNoiseHoles;
+    private int holeMeshResolution => Config.holeMeshResolution;
+    private float holeDensity => Config.holeDensity;
+    private Vector2 holeRadiusRange => Config.holeRadiusRange;
+    private float holeEdgeJitter => Config.holeEdgeJitter;
+    private bool holesAsPonds => Config.holesAsPonds;
+    private float pitDepth => Config.pitDepth;
+    private float waterSurfaceDepth => Config.waterSurfaceDepth;
+    private Material waterMaterial => Config.waterMaterial;
+    private string waterLayerName => Config.waterLayerName;
+    private bool walkableWater => Config.walkableWater;
+    private float waterWalkDepth => Config.waterWalkDepth;
+    private float waterWalkRampWidth => Config.waterWalkRampWidth;
+    private float holeClearanceAroundStartEnd => Config.holeClearanceAroundStartEnd;
+    private bool blockWalkingIntoHoles => Config.blockWalkingIntoHoles;
+    private float holeBlockerHeight => Config.holeBlockerHeight;
+    private float holeBlockerThickness => Config.holeBlockerThickness;
+    private bool buildUnderside => Config.buildUnderside;
+    private UndersideType undersideType => Config.undersideType;
+    private Material undersideMaterial => Config.undersideMaterial;
+    private float undersideMaxDepth => Config.undersideMaxDepth;
+    private float undersideEdgeLip => Config.undersideEdgeLip;
+    private float undersideTaperDistance => Config.undersideTaperDistance;
+    private float undersideNoise => Config.undersideNoise;
+    private float undersideNoiseScale => Config.undersideNoiseScale;
+    private int undersideResolution => Config.undersideResolution;
+    private bool undersideCollider => Config.undersideCollider;
+    private bool buildBoundaryWalls => Config.buildBoundaryWalls;
+    private float boundaryWallHeight => Config.boundaryWallHeight;
+    private float boundaryWallThickness => Config.boundaryWallThickness;
+    private bool markGeneratedStatic => Config.markGeneratedStatic;
+    private bool combineScatterMeshes => Config.combineScatterMeshes;
+    private bool disableCollidersAfterCombine => Config.disableCollidersAfterCombine;
 
-    [Header("Map Generation")]
-    [Min(1)] public int walkSteps = 40;
-    public bool moveTransformToEnd = true;
+    private ProceduralMapConfig _defaultConfig;
 
-    [Header("Start / End Markers")]
-    public bool showStartEndMarkers = true;
-    [Tooltip("ถ้าไม่ตั้งค่า จะสร้าง sphere สีให้อัตโนมัติแทน")]
-    public GameObject startMarkerPrefab;
-    public GameObject endMarkerPrefab;
-    public float markerSize = 1.5f;
-
-    [Header("Object Scatter Preview")]
-    [Tooltip("สุ่มวาง cube สีต่างๆ กระจายทั่วพื้นที่ walkable เพื่อจำลองตำแหน่งวาง object จริงในอนาคต")]
-    public bool scatterObjects = false;
-    [Tooltip("สุ่มขยับตำแหน่งภายใน cell เล็กน้อย กันดูเป็นตารางเป๊ะ (0 = อยู่กึ่งกลาง cell พอดี)")]
-    [Range(0f, 1f)] public float scatterPositionJitter = 0.3f;
-    public List<ScatterCategory> scatterCategories = new List<ScatterCategory>
+    // ค่าทั้งหมดอ่านผ่าน property ด้านบนที่ชื่อเดียวกับฟิลด์ใน config (โค้ดสร้าง map ข้างล่างจึงไม่ต้องแก้)
+    public ProceduralMapConfig Config
     {
-        new ScatterCategory { categoryName = "Obstacle", color = Color.red, count = 8 },
-        new ScatterCategory { categoryName = "Nature", color = Color.green, count = 12 },
-        new ScatterCategory { categoryName = "Item", color = Color.yellow, count = 5 },
-    };
-
-    [Header("Post-Process: Smoothing")]
-    public bool smoothEdges = true;
-    [Range(1, 20)] public int smoothIterations = 1;
-    [Range(1, 8)] public int smoothThreshold = 5;
-
-    [Header("Post-Process: Connectivity")]
-    public bool connectIslands = true;
-    public bool fillEnclosedHoles = true;
-
-    [Header("Post-Process: Noise Holes")]
-    [Tooltip("เจาะรูขนาดเล็กลงในพื้น ไม่ผูกกับขนาด Step Size แล้ว")]
-    public bool addNoiseHoles = false;
-    [Tooltip("ความละเอียด mesh ต่อ 1 step สำหรับตัดรู ยิ่งสูงขอบรูยิ่งเนียน/กลมขึ้น แต่ mesh หนักขึ้น (sub-quad = ค่านี้ยกกำลังสอง ต่อ 1 cell)")]
-    [Range(2, 12)] public int holeMeshResolution = 6;
-    [Tooltip("โอกาสที่แต่ละ cell จะกลายเป็นจุดเริ่มรู (0 = ไม่มีรู, 1 = รูเยอะมาก)")]
-    [Range(0f, 1f)] public float holeDensity = 0.12f;
-    [Tooltip("รัศมีของแต่ละรู (world unit) สุ่มในช่วงนี้ ไม่เกี่ยวกับ Step Size")]
-    public Vector2 holeRadiusRange = new Vector2(0.3f, 1.2f);
-    [Tooltip("ความเบี้ยวของขอบรู (0 = กลมเป๊ะ, 1 = ขอบบิดเบี้ยวเยอะ ดูเป็นธรรมชาติไม่เหลี่ยม)")]
-    [Range(0f, 1f)] public float holeEdgeJitter = 0.35f;
-
-    [Header("Noise Holes: Pond (ต้องเปิด Add Noise Holes)")]
-    [Tooltip("เปลี่ยนรูให้เป็นหลุม: มีผนัง + พื้นก้นหลุม + ผิวน้ำ (น้ำเป็น trigger collider เดินทะลุได้)")]
-    public bool holesAsPonds = true;
-    [Tooltip("ความลึกของหลุมจากผิวพื้น (world unit)")]
-    [Min(0f)] public float pitDepth = 1f;
-    [Tooltip("ผิวน้ำอยู่ต่ำกว่าผิวพื้นเท่าไหร่ (ถูกจำกัดไม่ให้ลึกเกินก้นหลุม)")]
-    [Min(0f)] public float waterSurfaceDepth = 0.25f;
-    [Tooltip("ถ้าไม่ตั้งค่า จะสร้าง material น้ำสีฟ้าโปร่งใสให้อัตโนมัติ")]
-    public Material waterMaterial;
-    [Tooltip("ชื่อ Unity Layer ที่ใช้กับน้ำ (Water เป็น layer มาตรฐานของ Unity) ถ้าไม่มี layer นี้จะใช้ Default")]
-    public string waterLayerName = "Water";
-    [Tooltip("สร้างกำแพงล่องหนรอบขอบบ่อ/รู กันเดินลงน้ำ (PlayerMovement จะทะลุกำแพงนี้ได้ตอนกระโดด/dash)")]
-    public bool blockWalkingIntoHoles = true;
-    [Tooltip("ความสูงกำแพงรอบบ่อเหนือผิวพื้น")]
-    [Min(0.1f)] public float holeBlockerHeight = 2f;
-    [Tooltip("ความหนากำแพงรอบบ่อ (กินเข้ามาฝั่งพื้น) บางไว้จะได้ยืนชิดขอบบ่อได้")]
-    [Min(0.02f)] public float holeBlockerThickness = 0.15f;
-
-    [Header("Island Underside (ใต้พื้นให้ดูเป็นเกาะลอย)")]
-    public bool buildUnderside = true;
-    [Tooltip("Island = ก้อนหินเรียวลง / Cube = ฐานทรงกล่อง (ผนังตั้งฉาก ก้นเรียบ) Cube ไม่ใช้ Edge Lip / Taper / Noise")]
-    public UndersideType undersideType = UndersideType.Island;
-    [Tooltip("ถ้าไม่ตั้งค่า จะสร้าง material สีน้ำตาลให้อัตโนมัติ / vertex color.r = ความลึก 0..1 ไว้ blend ใน Shader Graph")]
-    public Material undersideMaterial;
-    [Tooltip("ความลึกสูงสุดใต้ผิวพื้น (Cube = ความสูงของฐาน)")]
-    [Min(0.5f)] public float undersideMaxDepth = 8f;
-    [Tooltip("ความหนาผนังตรงขอบ (ถ้าเปิดบ่อน้ำ จะถูกดันให้ไม่ตื้นกว่าก้นหลุม)")]
-    [Min(0f)] public float undersideEdgeLip = 0.6f;
-    [Tooltip("ยิ่งน้อยยิ่งเรียวชัน (ระยะจากขอบที่ลึกถึง ~63% ของความลึกสูงสุด)")]
-    [Min(0.1f)] public float undersideTaperDistance = 5f;
-    [Tooltip("ความขรุขระ/หินยื่นลงล่าง (world unit)")]
-    [Range(0f, 4f)] public float undersideNoise = 1.5f;
-    [Min(0.01f)] public float undersideNoiseScale = 0.25f;
-    [Tooltip("จำนวน quad ต่อ 1 cell ยิ่งมากยิ่งละเอียด")]
-    [Range(1, 4)] public int undersideResolution = 2;
-    public bool undersideCollider = false;
-
-    [Header("Map Boundary (กำแพงล่องหนกันตกขอบ)")]
-    [Tooltip("สร้าง BoxCollider ล่องหนรอบขอบแผนที่ กัน player เดินตก map")]
-    public bool buildBoundaryWalls = true;
-    [Min(0.1f)] public float boundaryWallHeight = 3f;
-    [Min(0.05f)] public float boundaryWallThickness = 0.5f;
-
-    [Header("Scatter Optimization")]
-    [Tooltip("ตั้ง Static Flag ให้ Ground/Underside/Water/Scattered Objects ช่วย Occlusion Culling เสมอ และช่วย Static Batching ตอน Build ถ้า generate ทิ้งไว้ใน Editor โดยไม่ regenerate ซ้ำตอน runtime (ถ้า regenerate ทุกครั้งที่ Awake ตอน Play จะไม่ได้ static batching เพราะ object เพิ่งถูกสร้างหลัง Build ไปแล้ว ต้องพึ่ง Combine Scatter Meshes แทน)")]
-    public bool markGeneratedStatic = true;
-    [Tooltip("รวม mesh ของ object ที่ scatter ที่ใช้ mesh+material ชุดเดียวกันให้เหลือไม่กี่ draw call ลดภาระ render มหาศาลเมื่อมี object เยอะ (ทำงานได้ทั้ง Editor และ runtime ไม่พึ่ง static batching ของ Unity) Renderer ต้นฉบับจะถูกปิดไว้ (ไม่ลบ) Collider/Script เดิมยังทำงานปกติ ข้อเสีย: เลือก/ขยับ object แต่ละตัวใน Editor ไม่ได้หลัง combine และ mesh ต้นฉบับต้องเปิด Read/Write Enabled ใน Import Settings")]
-    public bool combineScatterMeshes = false;
-    [Tooltip("หลัง combine ให้ปิด Collider ของ object ต้นฉบับไปด้วย (ปิดถ้า object เหล่านั้นไม่ต้องชนกับอะไรเลย ลด physics overhead เพิ่มอีกชั้น)")]
-    public bool disableCollidersAfterCombine = false;
+        get
+        {
+            if (config != null) return config;
+            if (_defaultConfig == null)
+            {
+                _defaultConfig = ScriptableObject.CreateInstance<ProceduralMapConfig>();
+                _defaultConfig.hideFlags = HideFlags.DontSave;
+            }
+            return _defaultConfig;
+        }
+    }
 
     [Header("Randomization")]
+    [Tooltip("ปิด = สุ่ม seed ใหม่ทุกครั้งที่ generate (ทุกครั้งที่เข้า scene) แล้วเขียนค่าลงช่อง Seed ให้ copy ไปใช้ซ้ำได้")]
     public bool useFixedSeed = false;
     public int seed = 12345;
 
@@ -133,32 +105,6 @@ public class ProceduralMapGenerator : MonoBehaviour
         public Vector2 center;
         public float radius;
         public float jitterSeed;
-    }
-
-    [System.Serializable]
-    public class ScatterCategory
-    {
-        public string categoryName = "Category";
-        public Color color = Color.white;
-        [Min(0)] public int count = 5;
-        [Tooltip("รายการ prefab ให้สุ่มเลือกตอน scatter แต่ละตัว (ใส่ได้หลายแบบเพื่อเพิ่มความหลากหลาย) ถ้าเว้นว่างจะสร้าง cube สีตามที่กำหนดให้อัตโนมัติแทน")]
-        public GameObject[] prefabVariants;
-        public float cubeScale = 1f;
-
-        [Tooltip("สุ่มขนาด object แต่ละตัว (คูณกับ Cube Scale หรือขนาดเดิมของ prefab) มีผลกับแกน X/Z เสมอ และแกน Y ด้วยถ้าไม่ได้เปิด Randomize Height แยก")]
-        public bool randomizeSize = false;
-        [Tooltip("ช่วงตัวคูณขนาดแกน X/Z (min, max)")]
-        public Vector2 sizeRange = new Vector2(0.8f, 1.2f);
-
-        [Tooltip("สุ่มความสูง (แกน Y) แยกจากขนาด X/Z เช่นต้นไม้ต้นเตี้ยแคระ ต้นสูงชะลูด แต่ความกว้างพุ่มใกล้เคียงกัน ถ้าปิดไว้ แกน Y จะใช้ตัวคูณเดียวกับ Size Range")]
-        public bool randomizeHeight = false;
-        [Tooltip("ช่วงตัวคูณความสูงแกน Y (min, max)")]
-        public Vector2 heightRange = new Vector2(0.8f, 1.2f);
-
-        [Tooltip("สุ่มหมุนรอบแกน Y")]
-        public bool randomizeRotation = false;
-        [Tooltip("ช่วงมุมหมุนรอบแกน Y หน่วยองศา (min, max)")]
-        public Vector2 rotationRange = new Vector2(0f, 360f);
     }
 
     private readonly HashSet<Vector2Int> _cells = new HashSet<Vector2Int>();
@@ -188,6 +134,7 @@ public class ProceduralMapGenerator : MonoBehaviour
     public GameObject HoleBlockerObject { get; private set; }
     public GameObject StartMarker { get; private set; }
     public GameObject EndMarker { get; private set; }
+    public GameObject WarpPortal { get; private set; }
     public Transform ScatterContainer { get; private set; }
     public Vector3 StartPosition { get; private set; }
     public Vector3 EndPosition { get; private set; }
@@ -206,11 +153,25 @@ public class ProceduralMapGenerator : MonoBehaviour
     private void OnEnable()
     {
         RegisterInstance();
+#if UNITY_EDITOR
+        ProceduralMapConfig.Changed += OnConfigChanged;
+#endif
     }
 
     private void OnDisable()
     {
         if (Instance == this) Instance = null;
+#if UNITY_EDITOR
+        ProceduralMapConfig.Changed -= OnConfigChanged;
+#endif
+    }
+
+    private void OnDestroy()
+    {
+        // config ค่าเริ่มต้นสร้างตอน runtime ไม่ใช่ asset ต้องลบเองไม่งั้นค้างใน memory
+        if (_defaultConfig == null) return;
+        if (Application.isPlaying) Destroy(_defaultConfig);
+        else DestroyImmediate(_defaultConfig);
     }
 
     private bool RegisterInstance()
@@ -241,6 +202,14 @@ public class ProceduralMapGenerator : MonoBehaviour
 #endif
     }
 
+#if UNITY_EDITOR
+    // แก้ค่าใน config asset ที่ใช้อยู่ -> generate ใหม่เหมือนแก้ค่าบน component
+    private void OnConfigChanged(ProceduralMapConfig changed)
+    {
+        if (changed == config) OnValidate();
+    }
+#endif
+
     [ContextMenu("Generate Now")]
     private void GenerateNow()
     {
@@ -251,7 +220,8 @@ public class ProceduralMapGenerator : MonoBehaviour
     public void GenerateMap()
     {
         if (Instance != this) return;
-        if (useFixedSeed) Random.InitState(seed);
+        if (!useFixedSeed) seed = System.Environment.TickCount ^ System.Guid.NewGuid().GetHashCode();
+        Random.InitState(seed);
 
         _cells.Clear();
         _pathVisited.Clear();
@@ -303,11 +273,11 @@ public class ProceduralMapGenerator : MonoBehaviour
         if (connectIslands) ConnectIsolatedIslands();
         if (fillEnclosedHoles) FillEnclosedHoles();
 
-        GenerateNoiseHoleSeeds();
+        GenerateNoiseHoleSeeds(startCell, endCell);
 
         Transform root = ResetGeneratedRoot();
 
-        GroundObject = PitObject = WaterObject = UndersideObject = BoundaryObject = HoleBlockerObject = StartMarker = EndMarker = null;
+        GroundObject = PitObject = WaterObject = UndersideObject = BoundaryObject = HoleBlockerObject = StartMarker = EndMarker = WarpPortal = null;
         ScatterContainer = null;
         StartPosition = CellToWorld(startCell);
         EndPosition = CellToWorld(endCell);
@@ -317,9 +287,10 @@ public class ProceduralMapGenerator : MonoBehaviour
         if (buildUnderside) BuildUnderside(root);
         if (buildBoundaryWalls)
             BoundaryObject = MapBoundaryBuilder.Build(_cells, stepSize, boundaryWallHeight, boundaryWallThickness, root);
-        if (blockWalkingIntoHoles) BuildHoleBlockers(root);
+        if (blockWalkingIntoHoles && !walkableWater) BuildHoleBlockers(root);
 
         if (showStartEndMarkers) PlaceMarkers(root, startCell, endCell);
+        PlaceWarpPortal(root, startCell);
         ScatterObjects(root, startCell, endCell);
 
         // ย้าย transform เฉพาะตอนกด Play จริง กัน object กระโดดตำแหน่งตอน tune ค่าใน Editor
@@ -330,7 +301,17 @@ public class ProceduralMapGenerator : MonoBehaviour
             transform.position = endPos;
         }
 
+        // ไม่เซฟแผนที่ที่ generate ใน Editor ลงไฟล์ scene (mesh ใหญ่มากจน .unity เกิน 100MB push GitHub ไม่ได้)
+        // ไม่เสียอะไรเพราะ [ExecuteAlways] + Awake จะ generate ใหม่จาก config + seed ทุกครั้งที่เปิด scene / กด Play
+        if (!Application.isPlaying) MarkDontSaveRecursive(root.gameObject);
+
         MapGenerated?.Invoke();
+    }
+
+    private static void MarkDontSaveRecursive(GameObject go)
+    {
+        go.hideFlags |= HideFlags.DontSaveInEditor;
+        foreach (Transform child in go.transform) MarkDontSaveRecursive(child.gameObject);
     }
 
     private Bounds ComputeMapBounds()
@@ -567,10 +548,15 @@ public class ProceduralMapGenerator : MonoBehaviour
     }
 
     // ---------- Noise Holes: สุ่มตำแหน่ง+ขนาดรู ไม่ผูกกับ stepSize ----------
-    private void GenerateNoiseHoleSeeds()
+    private void GenerateNoiseHoleSeeds(Vector2Int startCell, Vector2Int endCell)
     {
         _holes.Clear();
         if (!addNoiseHoles) return;
+
+        Vector3 startWorld = CellToWorld(startCell);
+        Vector3 endWorld = CellToWorld(endCell);
+        var start = new Vector2(startWorld.x, startWorld.z);
+        var end = new Vector2(endWorld.x, endWorld.z);
 
         foreach (var cell in _cells)
         {
@@ -582,13 +568,32 @@ public class ProceduralMapGenerator : MonoBehaviour
                 cellCenter.z + Random.Range(-stepSize, stepSize) * 0.3f
             );
 
-            _holes.Add(new HoleCircle
+            var hole = new HoleCircle
             {
                 center = jitteredCenter,
                 radius = Random.Range(holeRadiusRange.x, holeRadiusRange.y),
                 jitterSeed = Random.Range(0f, 1000f)
-            });
+            };
+
+            // สุ่มครบทุกค่าก่อนค่อยทิ้ง ลำดับ Random จะได้ไม่เพี้ยนต่อ seed เดิมเมื่อปรับ clearance
+            if (HoleTooClose(hole, start) || HoleTooClose(hole, end)) continue;
+            _holes.Add(hole);
         }
+    }
+
+    // ขอบรูที่บานสุด (รวม jitter) เข้ามาใกล้จุดนี้เกิน clearance
+    private bool HoleTooClose(HoleCircle hole, Vector2 point)
+    {
+        float maxRadius = hole.radius * (1f + holeEdgeJitter);
+        return Vector2.Distance(hole.center, point) < maxRadius + holeClearanceAroundStartEnd;
+    }
+
+    // ความสูงผิวที่ยืน/วางของได้ ณ ตำแหน่งนี้ (local ของ GeneratedRoot): พื้นปกติ = 0 / ในบ่อ = ผิวน้ำ / รูทะลุ = ก้นใต้พื้นไม่มี ใช้ 0
+    public float GetSurfaceHeight(Vector3 worldPos)
+    {
+        float rootY = GeneratedRoot != null ? GeneratedRoot.transform.position.y : 0f;
+        bool inPond = addNoiseHoles && holesAsPonds && pitDepth > 0f && IsInsideHole(worldPos);
+        return rootY + (inPond ? WaterY : 0f);
     }
 
     // มุม + Perlin noise ตามมุม ทำให้ขอบรูเป็นก้อนเบี้ยวๆ แทนที่จะเป็นวงกลม/สี่เหลี่ยมเป๊ะ
@@ -637,7 +642,11 @@ public class ProceduralMapGenerator : MonoBehaviour
         // ก้นหลุม + ผนังแยกเป็นอีก object (material เดียวกับพื้น) จะได้ animate/ซ่อนแยกจากผิวพื้นได้
         if (pitVertices.Count > 0) PitObject = CreateGroundPart(root, "Pond Pits", pitVertices, pitUvs, pitTriangles);
 
-        if (waterVertices.Count > 0) BuildWater(root, waterVertices, waterUvs, waterTriangles);
+        if (waterVertices.Count > 0)
+        {
+            BuildWater(root, waterVertices, waterUvs, waterTriangles);
+            if (walkableWater && addCollider) BuildWaterWalkSurface(root);
+        }
     }
 
     private GameObject CreateGroundPart(Transform root, string objName, List<Vector3> vertices, List<Vector2> uvs, List<int> triangles)
@@ -743,8 +752,8 @@ public class ProceduralMapGenerator : MonoBehaviour
         return mat;
     }
 
-    // ---------- Pond Water: ผิวน้ำ (ไม่มี collider ตัน) + trigger box ต่อรู ให้เดินทะลุได้ ----------
-
+    // ---------- Pond Water: ผิวน้ำ (ไม่มี collider ตัน) ----------
+    // walkableWater = พื้นลุยน้ำล่องหน (BuildWaterWalkSurface) / ไม่งั้น = trigger box ต่อรู ตกลงไปแล้ว PlayerMovement จะ respawn
     private void BuildWater(Transform root, List<Vector3> vertices, List<Vector2> uvs, List<int> triangles)
     {
         Mesh mesh = CreateMesh("Generated Water", vertices, uvs, triangles);
@@ -760,6 +769,11 @@ public class ProceduralMapGenerator : MonoBehaviour
         rend.sharedMaterial = GetWaterMaterial();
         rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
+        if (markGeneratedStatic) waterObj.isStatic = true;
+        WaterObject = waterObj;
+
+        if (walkableWater) return; // ลุยน้ำได้ ไม่ต้องมี trigger ตกน้ำ -> respawn
+
         // trigger ครอบแต่ละรู ตั้งแต่ก้นหลุมถึงผิวน้ำ (MeshCollider แบบ trigger ต้อง convex จึงใช้ box แทน)
         float top = WaterY;
         float bottom = PitFloorY;
@@ -773,9 +787,97 @@ public class ProceduralMapGenerator : MonoBehaviour
             box.center = new Vector3(hole.center.x, (top + bottom) * 0.5f, hole.center.y);
             box.size = new Vector3(r * 2f, top - bottom, r * 2f);
         }
+    }
 
-        if (markGeneratedStatic) waterObj.isStatic = true;
-        WaterObject = waterObj;
+    // พื้นลุยน้ำ (collider อย่างเดียว ไม่มี renderer) ปิดบ่อตาม sub-cell ที่เจาะไว้
+    // ขอบบ่อสูง 0 เท่าผิวพื้น แล้วลาดลงถึง waterWalkDepth ภายในระยะ waterWalkRampWidth
+    // -> เดินลงน้ำตัวค่อยๆ จม เดินขึ้นฝั่งเองได้โดยไม่ต้องมีระบบก้าวขั้น (ผนัง/ก้นหลุมจริงยังอยู่ข้างล่างเป็นแค่ภาพ)
+    private void BuildWaterWalkSurface(Transform root)
+    {
+        if (_holeSubCells.Count == 0) return;
+
+        int res = Mathf.Max(1, holeMeshResolution);
+        float subSize = stepSize / res;
+        float cellHalf = stepSize * 0.5f;
+        float depth = Mathf.Min(waterWalkDepth, pitDepth * 0.95f);
+
+        // ระยะ (จำนวน sub-cell) จากขอบบ่อ: sub-cell ที่ติดพื้นปกติ = 1 แล้ว BFS เข้าไปข้างใน
+        var dist = new Dictionary<Vector2Int, int>();
+        var queue = new Queue<Vector2Int>();
+        foreach (var g in _holeSubCells)
+        {
+            foreach (var d in Directions4)
+            {
+                if (_holeSubCells.Contains(g + d)) continue;
+                dist[g] = 1;
+                queue.Enqueue(g);
+                break;
+            }
+        }
+        while (queue.Count > 0)
+        {
+            var g = queue.Dequeue();
+            foreach (var d in Directions4)
+            {
+                var n = g + d;
+                if (!_holeSubCells.Contains(n) || dist.ContainsKey(n)) continue;
+                dist[n] = dist[g] + 1;
+                queue.Enqueue(n);
+            }
+        }
+
+        // ความสูงต่อมุม (ใช้ vertex ร่วมกัน พื้นจะต่อเนื่องไม่มีรอยขั้นระหว่าง sub-cell)
+        var cornerIndex = new Dictionary<Vector2Int, int>();
+        var vertices = new List<Vector3>();
+        var triangles = new List<int>();
+
+        int Corner(Vector2Int c)
+        {
+            if (cornerIndex.TryGetValue(c, out int index)) return index;
+
+            // มุมที่แตะ sub-cell พื้นปกติ = ระดับผิวพื้นพอดี / นอกนั้นลึกตามระยะจากขอบ
+            int level = int.MaxValue;
+            for (int oz = -1; oz <= 0; oz++)
+            {
+                for (int ox = -1; ox <= 0; ox++)
+                {
+                    var cell = new Vector2Int(c.x + ox, c.y + oz);
+                    level = dist.TryGetValue(cell, out int k) ? Mathf.Min(level, k) : 0;
+                    if (level == 0) break;
+                }
+                if (level == 0) break;
+            }
+
+            float y = -depth * Mathf.Clamp01(level * subSize / waterWalkRampWidth);
+            index = vertices.Count;
+            vertices.Add(new Vector3(-cellHalf + c.x * subSize, y, -cellHalf + c.y * subSize));
+            cornerIndex[c] = index;
+            return index;
+        }
+
+        foreach (var g in _holeSubCells)
+        {
+            // winding เดียวกับ AddQuad (v0,v1,v2 / v2,v1,v3) ให้ normal หันขึ้น
+            int v0 = Corner(g);
+            int v1 = Corner(new Vector2Int(g.x, g.y + 1));
+            int v2 = Corner(new Vector2Int(g.x + 1, g.y));
+            int v3 = Corner(new Vector2Int(g.x + 1, g.y + 1));
+            triangles.Add(v0); triangles.Add(v1); triangles.Add(v2);
+            triangles.Add(v2); triangles.Add(v1); triangles.Add(v3);
+        }
+
+        var mesh = new Mesh { name = "Generated Water Walk Surface" };
+        if (vertices.Count > 65535) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        mesh.SetVertices(vertices);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateBounds();
+
+        // แยก object จาก Pond Water กัน MapBuildAnimator ขยับ collider ตามตอน animate ผิวน้ำ
+        var obj = new GameObject("Pond Walk Surface");
+        obj.transform.SetParent(root, false);
+        obj.AddComponent<MeshCollider>().sharedMesh = mesh;
+
+        if (markGeneratedStatic) obj.isStatic = true;
     }
 
     private Material GetWaterMaterial()
@@ -811,11 +913,23 @@ public class ProceduralMapGenerator : MonoBehaviour
     {
         Vector3 startPos = CellToWorld(startCell);
         Vector3 endPos = CellToWorld(endCell);
-        startPos.y = transform.position.y;
-        endPos.y = transform.position.y;
+        startPos.y = GetSurfaceHeight(startPos);
+        endPos.y = GetSurfaceHeight(endPos);
 
         StartMarker = CreateMarker(root, "Start Marker", startMarkerPrefab, startPos, new Color(0.2f, 0.9f, 0.3f));
         EndMarker = CreateMarker(root, "End Marker", endMarkerPrefab, endPos, new Color(0.9f, 0.25f, 0.25f));
+    }
+
+    // วาง portal ไว้ใต้ GeneratedRoot จึงถูกลบพร้อมแผนที่เก่าทุกครั้งที่ generate ใหม่
+    private void PlaceWarpPortal(Transform root, Vector2Int startCell)
+    {
+        if (warpPortalPrefab == null) return;
+
+        // Y = ผิวพื้นจริง ณ จุดตั้ง (ไม่ใช่ความสูง transform ของ generator) offset จึงเป็นแค่ระยะ pivot->ฐานของ prefab
+        Vector3 pos = CellToWorld(startCell);
+        pos.y = GetSurfaceHeight(pos);
+        WarpPortal = Instantiate(warpPortalPrefab, pos + warpPortalOffset, warpPortalPrefab.transform.rotation, root);
+        WarpPortal.name = "Warp Portal";
     }
 
     private GameObject CreateMarker(Transform root, string markerName, GameObject prefab, Vector3 position, Color fallbackColor)
