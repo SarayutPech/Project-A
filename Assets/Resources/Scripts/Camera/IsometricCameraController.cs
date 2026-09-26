@@ -119,7 +119,8 @@ public class IsometricCameraController : MonoBehaviour
         if (gen != null)
         {
             _pivot = gen.MapBounds.center;
-            _distance = fitWholeMap ? DistanceToFit(gen.MapBounds) : mapViewDistance;
+            _distance = mapViewDistance;
+            if (fitWholeMap) FitToMap(gen);
         }
         ApplyTransform();
     }
@@ -191,14 +192,99 @@ public class IsometricCameraController : MonoBehaviour
     // tan(ครึ่งมุมมองแนวตั้ง) ใช้แปลงระยะ <-> ขนาดภาพ
     private float HalfFovTan() => Mathf.Tan(_camera.fieldOfView * 0.5f * Mathf.Deg2Rad);
 
-    // ระยะที่ทำให้ map ทั้งอันอยู่ในจอ (ประมาณจากวงกลมที่ครอบ map บนพื้น)
-    private float DistanceToFit(Bounds bounds)
+    // หา pivot + ระยะที่ทำให้ map อยู่เต็มจอพอดี:
+    // เอา vertex จริงของพื้น/ใต้เกาะมาแปลงเป็นพิกัดมุมกล้อง (x = ขวา, y = ขึ้น, z = ลึก) แล้วหากรอบที่ครอบ
+    // ได้ผลแน่นกว่าการใช้ bounds ของโลก เพราะ map รูปทางคดเคี้ยวหมุน 45° จะเหลือมุมว่างเยอะ และมุมก้มทำให้แกนลึกสั้นลงบนจอ
+    private void FitToMap(ProceduralMapGenerator gen)
     {
         if (_camera == null) _camera = GetComponent<Camera>();
 
-        float radius = new Vector2(bounds.extents.x, bounds.extents.z).magnitude + fitPadding;
+        CollectFitPoints(gen, FitPoints);
+        if (FitPoints.Count == 0) return;
+
+        Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
+        Quaternion toView = Quaternion.Inverse(rotation);
+
+        Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
+        for (int i = 0; i < FitPoints.Count; i++)
+        {
+            Vector3 v = toView * FitPoints[i];
+            FitPoints[i] = v;
+            min = Vector3.Min(min, v);
+            max = Vector3.Max(max, v);
+        }
+
+        // จุดกลางบนจอ ส่วนความลึกให้อยู่ระดับกลาง map เดิม (pivot จะได้อยู่ใกล้พื้น แพนไปหา player ได้เนียน)
+        float pivotZ = (toView * gen.MapBounds.center).z;
+        float cx = (min.x + max.x) * 0.5f;
+        float cy = (min.y + max.y) * 0.5f;
+        _pivot = rotation * new Vector3(cx, cy, pivotZ);
+
         float tanV = HalfFovTan();
         float tanH = tanV * Mathf.Max(0.01f, _camera.aspect);
-        return Mathf.Max(1f, radius / Mathf.Min(tanV, tanH));
+        float distance;
+
+        if (orthographic)
+        {
+            // ortho: ขนาดภาพไม่ขึ้นกับความลึก ใช้ครึ่งกว้าง/ครึ่งสูงของกรอบตรง ๆ
+            float halfW = (max.x - min.x) * 0.5f + fitPadding;
+            float halfH = (max.y - min.y) * 0.5f + fitPadding;
+            distance = Mathf.Max(halfH, halfW / Mathf.Max(0.01f, _camera.aspect)) / tanV;
+        }
+        else
+        {
+            // perspective: จุดที่อยู่ใกล้กล้องกว่า pivot กินพื้นที่จอมากกว่า ต้องเช็คทีละจุด
+            // จุดอยู่ในจอเมื่อ |x - cx| <= (distance + ความลึกเทียบ pivot) * tanH (แกน y เช่นกัน)
+            distance = 0f;
+            foreach (Vector3 v in FitPoints)
+            {
+                float dz = v.z - pivotZ;
+                distance = Mathf.Max(distance,
+                    (Mathf.Abs(v.x - cx) + fitPadding) / tanH - dz,
+                    (Mathf.Abs(v.y - cy) + fitPadding) / tanV - dz);
+            }
+        }
+
+        // กันจุดที่ใกล้กล้องที่สุดหลุดหลัง near clip plane
+        distance = Mathf.Max(distance, pivotZ - min.z + _camera.nearClipPlane + fitPadding);
+        _distance = Mathf.Max(1f, distance);
+        FitPoints.Clear();
+    }
+
+    private static readonly System.Collections.Generic.List<Vector3> FitPoints = new System.Collections.Generic.List<Vector3>();
+    private static readonly System.Collections.Generic.List<Vector3> MeshVertices = new System.Collections.Generic.List<Vector3>();
+
+    // vertex (world space) ของพื้น + ใต้เกาะ ถ้ายังไม่มี mesh ใช้มุมของ MapBounds แทน
+    private static void CollectFitPoints(ProceduralMapGenerator gen, System.Collections.Generic.List<Vector3> points)
+    {
+        points.Clear();
+        AddMeshPoints(gen.GroundObject, points);
+        AddMeshPoints(gen.UndersideObject, points);
+        if (points.Count > 0) return;
+
+        Bounds b = gen.MapBounds;
+        points.Add(new Vector3(b.min.x, 0f, b.min.z));
+        points.Add(new Vector3(b.min.x, 0f, b.max.z));
+        points.Add(new Vector3(b.max.x, 0f, b.min.z));
+        points.Add(new Vector3(b.max.x, 0f, b.max.z));
+    }
+
+    // MapBuildAnimator อาจกำลังปิด/เลื่อนลง/ย่อ object พวกนี้อยู่ จึงรวม object ที่ปิดอยู่ด้วย
+    // และใช้ matrix ของ root (ground/underside ถูกสร้างไว้ใต้ root ที่ local identity) แทน transform ของตัวเองที่กำลังถูก animate
+    private static void AddMeshPoints(GameObject obj, System.Collections.Generic.List<Vector3> points)
+    {
+        if (obj == null) return;
+        Transform root = obj.transform.parent;
+        Matrix4x4 m = root != null ? root.localToWorldMatrix : Matrix4x4.identity;
+
+        foreach (var mf in obj.GetComponentsInChildren<MeshFilter>(true))
+        {
+            Mesh mesh = mf.sharedMesh;
+            if (mesh == null || !mesh.isReadable) continue;
+
+            mesh.GetVertices(MeshVertices);
+            foreach (Vector3 v in MeshVertices) points.Add(m.MultiplyPoint3x4(v));
+        }
+        MeshVertices.Clear();
     }
 }

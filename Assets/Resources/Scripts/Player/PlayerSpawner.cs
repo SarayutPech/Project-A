@@ -9,7 +9,7 @@ public class PlayerSpawner : MonoBehaviour
     [Tooltip("prefab ของ player (ถ้าไม่มี PlayerMovement จะเพิ่มให้) ถ้าเว้นว่างจะสร้าง capsule ให้อัตโนมัติ")]
     public GameObject playerPrefab;
     [Tooltip("ถ้าเว้นว่างจะใช้ ProceduralMapGenerator.Instance")]
-    public ProceduralMapGenerator generator;
+    private ProceduralMapGenerator generator;
 
     private void Awake()
     {

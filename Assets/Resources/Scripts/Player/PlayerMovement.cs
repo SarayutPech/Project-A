@@ -6,7 +6,8 @@ using UnityEngine.InputSystem;
 //             Gamepad: left stick, left stick click = วิ่ง, ปุ่มล่าง (A/Cross) = กระโดด, ปุ่มซ้าย (X/Square) = dash
 // ถ้ามี ProceduralMapGenerator ในฉาก จะวาง player ที่จุด Start และล็อกไว้จน MapBuildAnimator เล่นจบ
 //
-// บ่อน้ำ/รู: เดินเข้าไม่ได้ (ชนกำแพง Hole Blockers ของ generator) แต่ตอนกระโดด/dash จะทะลุกำแพงนี้ข้ามไปได้
+// บ่อน้ำ/รู: ถ้า config เปิด Walkable Water จะลุยน้ำได้เหมือนพื้นปกติ (generator สร้างพื้นลาดล่องหนให้ ไม่มี trigger respawn)
+// ถ้าปิด: เดินเข้าไม่ได้ (ชนกำแพง Hole Blockers ของ generator) แต่ตอนกระโดด/dash จะทะลุกำแพงนี้ข้ามไปได้
 // ถ้าข้ามไม่พ้นแล้วตกน้ำ (หรือตกต่ำกว่า respawnBelowY) จะกลับไปยืนจุดปลอดภัยล่าสุด
 [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider))]
 public class PlayerMovement : MonoBehaviour
@@ -73,6 +74,8 @@ public class PlayerMovement : MonoBehaviour
     [Header("Fall Safety")]
     [Tooltip("ถ้าตกต่ำกว่านี้ (เช่นหลุดขอบ/ตกรู) จะกลับไปยืนจุดปลอดภัยล่าสุด")]
     public float respawnBelowY = -20f;
+    [Tooltip("จำจุดปลอดภัย (ไว้ respawn ตอนตกน้ำ) เฉพาะตอนมีพื้นรอบตัวห่างจากขอบตัวอย่างน้อยเท่านี้ กันเกิดเกยขอบบ่อแล้วตกซ้ำ")]
+    [Min(0f)] public float safeEdgeMargin = 0.5f;
 
     // ล็อกแล้ว Rigidbody จะเป็น kinematic (ไม่โดน gravity / ไม่ถูกชนกระเด็น)
     public bool CanMove
@@ -456,11 +459,48 @@ public class PlayerMovement : MonoBehaviour
         // จำจุดปลอดภัยไว้ respawn ตอนตกน้ำ (ไม่นับก้นหลุม และตอนยังทับกำแพงบ่อ)
         var gen = Generator;
         bool onPitFloor = gen != null && gen.PitObject != null && groundCollider.gameObject == gen.PitObject;
-        if (!onPitFloor && !IsDashing && !OverlapsHoleBlocker())
+        if (!onPitFloor && !IsDashing && !OverlapsHoleBlocker() && IsSafeSpot(gen))
         {
             _lastSafePosition = _body.position;
             _hasSafePosition = true;
         }
+    }
+
+    // จุดปลอดภัยต้องมีพื้นจริงรอบตัว ห่างจากขอบ capsule อีก safeEdgeMargin (ไม่ใช่แค่ขอบ capsule แตะขอบบ่อ)
+    // ไม่งั้น respawn ไปยืนเกยขอบบ่อแล้วไถล/เดินตกน้ำซ้ำไม่จบ (จำเป็นตอนไม่มีกำแพงรอบบ่อ = Walkable Water)
+    private static readonly Vector3[] SafeCheckDirections =
+    {
+        Vector3.zero,
+        new Vector3(1f, 0f, 0f), new Vector3(-1f, 0f, 0f), new Vector3(0f, 0f, 1f), new Vector3(0f, 0f, -1f),
+        new Vector3(0.7071f, 0f, 0.7071f), new Vector3(-0.7071f, 0f, 0.7071f),
+        new Vector3(0.7071f, 0f, -0.7071f), new Vector3(-0.7071f, 0f, -0.7071f),
+    };
+
+    private bool IsSafeSpot(ProceduralMapGenerator gen)
+    {
+        float scale = Mathf.Max(transform.lossyScale.x, transform.lossyScale.z);
+        float ringRadius = _capsule.radius * scale + safeEdgeMargin;
+        Vector3 center = transform.TransformPoint(_capsule.center);
+        float footY = transform.position.y - FootToPivot();
+        float distance = center.y - footY + groundCheckDistance * 2f;
+        GameObject pit = gen != null ? gen.PitObject : null;
+
+        foreach (var dir in SafeCheckDirections)
+        {
+            bool hasGround = false;
+            var hits = Physics.RaycastAll(center + dir * ringRadius, Vector3.down, distance, groundLayers, QueryTriggerInteraction.Ignore);
+            foreach (var hit in hits)
+            {
+                if (hit.collider.attachedRigidbody == _body) continue;
+                if (pit != null && hit.collider.gameObject == pit) continue;
+                if (System.Array.IndexOf(_holeBlockers, hit.collider) >= 0) continue;
+                if (Mathf.Abs(hit.point.y - footY) > groundCheckDistance * 2f) continue; // ต้องเป็นพื้นระดับเท้า ไม่ใช่หัวต้นไม้/ก้อนหิน
+                hasGround = true;
+                break;
+            }
+            if (!hasGround) return false;
+        }
+        return true;
     }
 
     // ระยะจาก pivot ลงไปถึงก้น capsule
