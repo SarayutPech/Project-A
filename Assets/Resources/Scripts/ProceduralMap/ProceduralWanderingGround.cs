@@ -30,6 +30,8 @@ public class ProceduralMapGenerator : MonoBehaviour
     private int smoothThreshold => Config.smoothThreshold;
     private bool connectIslands => Config.connectIslands;
     private bool fillEnclosedHoles => Config.fillEnclosedHoles;
+    private bool terraces => Config.terraces;
+    private Material cliffMaterial => Config.cliffMaterial;
     private bool addNoiseHoles => Config.addNoiseHoles;
     private int holeMeshResolution => Config.holeMeshResolution;
     private float holeDensity => Config.holeDensity;
@@ -112,7 +114,11 @@ public class ProceduralMapGenerator : MonoBehaviour
     private readonly HashSet<Vector2Int> _pathVisited = new HashSet<Vector2Int>();
     private readonly List<Vector2Int> _pathStack = new List<Vector2Int>();
     private readonly HashSet<Vector2Int> _holeSubCells = new HashSet<Vector2Int>(); // sub-cell ที่เป็นรู/บ่อ รอบล่าสุด
+    private TerraceLayout _terrace;
     private const string RootName = "Generated Map";
+
+    // ความสูงชั้น/ทางลาดของรอบล่าสุด (พื้นเรียบถ้าปิด terraces)
+    public TerraceLayout Terrace => _terrace ?? (_terrace = TerraceLayout.Flat(stepSize));
 
     private float PitFloorY => -pitDepth;
     private float WaterY => -Mathf.Min(waterSurfaceDepth, pitDepth * 0.9f);
@@ -275,18 +281,31 @@ public class ProceduralMapGenerator : MonoBehaviour
 
         GenerateNoiseHoleSeeds(startCell, endCell);
 
+        // ใช้ System.Random จาก seed แยกของตัวเอง ไม่แตะลำดับ UnityEngine.Random -> รูปร่าง/บ่อของ seed เดิมไม่เปลี่ยน
+        // พื้นใต้บ่อแต่ละบ่อถูกบังคับให้อยู่ชั้นเดียวกัน (บ่อใหญ่แค่ไหนก็อยู่บนที่ราบเสมอ ไม่คร่อมหน้าผา)
+        _terrace = terraces
+            ? TerraceLayout.Build(_cells, startCell, endCell, new TerraceLayout.Settings
+            {
+                stepSize = stepSize,
+                levels = Config.terraceLevels,
+                levelHeight = Config.terraceHeight,
+                regionSize = Config.terraceRegionSize,
+                flatChance = Config.terraceFlatChance,
+            }, seed, HoleFootprints())
+            : TerraceLayout.Flat(stepSize);
+
         Transform root = ResetGeneratedRoot();
 
         GroundObject = PitObject = WaterObject = UndersideObject = BoundaryObject = HoleBlockerObject = StartMarker = EndMarker = WarpPortal = null;
         ScatterContainer = null;
-        StartPosition = CellToWorld(startCell);
-        EndPosition = CellToWorld(endCell);
+        StartPosition = SurfacePoint(CellToWorld(startCell));
+        EndPosition = SurfacePoint(CellToWorld(endCell));
         MapBounds = ComputeMapBounds();
 
         BuildGroundMesh(root);
         if (buildUnderside) BuildUnderside(root);
         if (buildBoundaryWalls)
-            BoundaryObject = MapBoundaryBuilder.Build(_cells, stepSize, boundaryWallHeight, boundaryWallThickness, root);
+            BoundaryObject = MapBoundaryBuilder.Build(_cells, stepSize, Terrace.MaxHeight + boundaryWallHeight, boundaryWallThickness, root);
         if (blockWalkingIntoHoles && !walkableWater) BuildHoleBlockers(root);
 
         if (showStartEndMarkers) PlaceMarkers(root, startCell, endCell);
@@ -581,6 +600,28 @@ public class ProceduralMapGenerator : MonoBehaviour
         }
     }
 
+    // cell ที่แต่ละบ่อทับ (รวมขอบบ่อที่บานสุด + กำแพงรอบบ่อ) ส่งให้ TerraceLayout บังคับเป็นชั้นเดียว ไม่มีทางลาด
+    // -> ก้นบ่อ ผิวน้ำ ผนังบ่อ อิงความสูงเดียวได้เสมอ
+    private List<List<Vector2Int>> HoleFootprints()
+    {
+        var footprints = new List<List<Vector2Int>>();
+        if (!addNoiseHoles) return footprints;
+
+        foreach (var hole in _holes)
+        {
+            float r = hole.radius * (1f + holeEdgeJitter) + holeBlockerThickness + 0.1f;
+            var min = WorldToCell(new Vector3(hole.center.x - r, 0f, hole.center.y - r));
+            var max = WorldToCell(new Vector3(hole.center.x + r, 0f, hole.center.y + r));
+
+            var cells = new List<Vector2Int>();
+            for (int x = min.x; x <= max.x; x++)
+                for (int z = min.y; z <= max.y; z++)
+                    cells.Add(new Vector2Int(x, z));
+            footprints.Add(cells);
+        }
+        return footprints;
+    }
+
     // ขอบรูที่บานสุด (รวม jitter) เข้ามาใกล้จุดนี้เกิน clearance
     private bool HoleTooClose(HoleCircle hole, Vector2 point)
     {
@@ -588,12 +629,18 @@ public class ProceduralMapGenerator : MonoBehaviour
         return Vector2.Distance(hole.center, point) < maxRadius + holeClearanceAroundStartEnd;
     }
 
-    // ความสูงผิวที่ยืน/วางของได้ ณ ตำแหน่งนี้ (local ของ GeneratedRoot): พื้นปกติ = 0 / ในบ่อ = ผิวน้ำ / รูทะลุ = ก้นใต้พื้นไม่มี ใช้ 0
+    // ความสูงผิวที่ยืน/วางของได้ ณ ตำแหน่งนี้: พื้น = ความสูงชั้น/ทางลาด / ในบ่อ = ผิวน้ำ / รูทะลุ = ไม่มีพื้น ใช้ระดับพื้นรอบรู
     public float GetSurfaceHeight(Vector3 worldPos)
     {
         float rootY = GeneratedRoot != null ? GeneratedRoot.transform.position.y : 0f;
         bool inPond = addNoiseHoles && holesAsPonds && pitDepth > 0f && IsInsideHole(worldPos);
-        return rootY + (inPond ? WaterY : 0f);
+        return rootY + Terrace.HeightAtWorld(worldPos) + (inPond ? WaterY : 0f);
+    }
+
+    private Vector3 SurfacePoint(Vector3 worldPos)
+    {
+        worldPos.y = GetSurfaceHeight(worldPos);
+        return worldPos;
     }
 
     // มุม + Perlin noise ตามมุม ทำให้ขอบรูเป็นก้อนเบี้ยวๆ แทนที่จะเป็นวงกลม/สี่เหลี่ยมเป๊ะ
@@ -617,14 +664,44 @@ public class ProceduralMapGenerator : MonoBehaviour
         return false;
     }
 
-    // ---------- Phase 2: สร้าง mesh เดียวรวมทุก cell ----------
+    // ---------- Phase 2: สร้าง mesh แบ่งเป็น chunk ----------
+
+    // mesh ของ 1 ส่วนใน 1 chunk
+    private class MeshLists
+    {
+        public readonly List<Vector3> vertices = new List<Vector3>();
+        public readonly List<Vector2> uvs = new List<Vector2>();
+        public readonly List<int> triangles = new List<int>();
+    }
+
+    // พื้น/ทางลาด/หน้าผา แบ่งเป็น chunk ละ terrainChunkSize x terrainChunkSize cell แล้วแยกย่อยตามชั้น (key = x, z, level)
+    // -> OcclusionOutlineController fade เฉพาะชั้นที่สูงกว่า player ใน chunk ที่บังได้ + mesh collider ไม่ใหญ่เกิน (physics midphase)
+    private readonly Dictionary<Vector3Int, MeshLists> _groundChunks = new Dictionary<Vector3Int, MeshLists>();
+    private readonly Dictionary<Vector3Int, MeshLists> _rampChunks = new Dictionary<Vector3Int, MeshLists>();
+    private readonly Dictionary<Vector3Int, MeshLists> _cliffChunks = new Dictionary<Vector3Int, MeshLists>();
+    private readonly List<Transform> _terrainChunks = new List<Transform>();
+
+    // กลุ่มพื้นรอบล่าสุด 1 ตัว = 1 ชั้นใน 1 chunk (ลูก Ground / Ramps / Cliffs ของชั้นนั้น)
+    // หน้าผานับเป็นของชั้นบน ทางลาดนับเป็นของชั้นที่หัวลาดขึ้นไปถึง ให้ระบบอื่นเช่นตัว fade ตอนบังใช้
+    public IReadOnlyList<Transform> TerrainChunks => _terrainChunks;
+
+    private Vector3Int ChunkOf(Vector2Int cell)
+    {
+        int size = Mathf.Max(1, Config.terrainChunkSize);
+        return new Vector3Int(Mathf.FloorToInt(cell.x / (float)size), Mathf.FloorToInt(cell.y / (float)size), Terrace.GetLevel(cell));
+    }
+
+    private static MeshLists GetChunk(Dictionary<Vector3Int, MeshLists> chunks, Vector3Int key)
+    {
+        if (!chunks.TryGetValue(key, out var lists)) chunks[key] = lists = new MeshLists();
+        return lists;
+    }
 
     private void BuildGroundMesh(Transform root)
     {
-        var vertices = new List<Vector3>();
-        var uvs = new List<Vector2>();
-        var triangles = new List<int>();
         _holeSubCells.Clear();
+        _groundChunks.Clear(); _rampChunks.Clear(); _cliffChunks.Clear();
+        _terrainChunks.Clear();
         var pitVertices = new List<Vector3>();
         var pitUvs = new List<Vector2>();
         var pitTriangles = new List<int>();
@@ -633,14 +710,19 @@ public class ProceduralMapGenerator : MonoBehaviour
         var waterTriangles = new List<int>();
 
         if (addNoiseHoles && holeMeshResolution > 1 && _holes.Count > 0)
-            BuildSubdividedGeometry(vertices, uvs, triangles, pitVertices, pitUvs, pitTriangles, waterVertices, waterUvs, waterTriangles);
+            BuildSubdividedGeometry(pitVertices, pitUvs, pitTriangles, waterVertices, waterUvs, waterTriangles);
         else
-            BuildSimpleGeometry(vertices, uvs, triangles);
+            BuildSimpleGeometry();
+        BuildCliffs();
 
-        GroundObject = CreateGroundPart(root, "Generated Ground", vertices, uvs, triangles);
+        // Generated Ground = กล่องรวม chunk (MapBuildAnimator ยกทั้งก้อนขึ้นพร้อมกัน)
+        GroundObject = new GameObject("Generated Ground");
+        GroundObject.transform.SetParent(root, false);
+        if (markGeneratedStatic) GroundObject.isStatic = true;
+        BuildTerrainChunks(GroundObject.transform);
 
         // ก้นหลุม + ผนังแยกเป็นอีก object (material เดียวกับพื้น) จะได้ animate/ซ่อนแยกจากผิวพื้นได้
-        if (pitVertices.Count > 0) PitObject = CreateGroundPart(root, "Pond Pits", pitVertices, pitUvs, pitTriangles);
+        if (pitVertices.Count > 0) PitObject = CreateGroundPart(root, "Pond Pits", pitVertices, pitUvs, pitTriangles, Config.pondPhysicsMaterial);
 
         if (waterVertices.Count > 0)
         {
@@ -649,7 +731,44 @@ public class ProceduralMapGenerator : MonoBehaviour
         }
     }
 
-    private GameObject CreateGroundPart(Transform root, string objName, List<Vector3> vertices, List<Vector2> uvs, List<int> triangles)
+    private void BuildTerrainChunks(Transform parent)
+    {
+        var keys = new HashSet<Vector3Int>(_groundChunks.Keys);
+        keys.UnionWith(_rampChunks.Keys);
+        keys.UnionWith(_cliffChunks.Keys);
+        var sorted = new List<Vector3Int>(keys);
+        sorted.Sort((a, b) => a.x != b.x ? a.x.CompareTo(b.x) : a.y != b.y ? a.y.CompareTo(b.y) : a.z.CompareTo(b.z));
+
+        Material cliffRender = cliffMaterial != null ? cliffMaterial : GetUndersideMaterial();
+        var chunkObjects = new Dictionary<Vector2Int, Transform>();
+        foreach (var key in sorted)
+        {
+            var xz = new Vector2Int(key.x, key.y);
+            if (!chunkObjects.TryGetValue(xz, out Transform chunk))
+            {
+                var chunkObj = new GameObject($"Chunk {key.x},{key.y}");
+                chunkObj.transform.SetParent(parent, false);
+                if (markGeneratedStatic) chunkObj.isStatic = true;
+                chunkObjects[xz] = chunk = chunkObj.transform;
+            }
+
+            var level = new GameObject($"Level {key.z}");
+            level.transform.SetParent(chunk, false);
+            if (markGeneratedStatic) level.isStatic = true;
+
+            if (_groundChunks.TryGetValue(key, out var g))
+                CreateGroundPart(level.transform, "Ground", g.vertices, g.uvs, g.triangles, Config.groundPhysicsMaterial);
+            if (_rampChunks.TryGetValue(key, out var r))
+                CreateGroundPart(level.transform, "Ramps", r.vertices, r.uvs, r.triangles, Config.rampPhysicsMaterial);
+            if (_cliffChunks.TryGetValue(key, out var c))
+                CreateGroundPart(level.transform, "Cliffs", c.vertices, c.uvs, c.triangles, Config.cliffPhysicsMaterial, cliffRender);
+
+            _terrainChunks.Add(level.transform);
+        }
+    }
+
+    private GameObject CreateGroundPart(Transform root, string objName, List<Vector3> vertices, List<Vector2> uvs, List<int> triangles,
+        PhysicsMaterial physicsMaterial, Material renderMaterial = null)
     {
         Mesh mesh = CreateMesh(objName, vertices, uvs, triangles);
 
@@ -658,9 +777,15 @@ public class ProceduralMapGenerator : MonoBehaviour
 
         obj.AddComponent<MeshFilter>().sharedMesh = mesh;
         var meshRenderer = obj.AddComponent<MeshRenderer>();
-        if (groundMaterial != null) meshRenderer.sharedMaterial = groundMaterial;
+        Material mat = renderMaterial != null ? renderMaterial : groundMaterial;
+        if (mat != null) meshRenderer.sharedMaterial = mat;
 
-        if (addCollider) obj.AddComponent<MeshCollider>().sharedMesh = mesh;
+        if (addCollider)
+        {
+            var col = obj.AddComponent<MeshCollider>();
+            col.sharedMesh = mesh;
+            col.sharedMaterial = physicsMaterial;
+        }
 
         if (markGeneratedStatic) obj.isStatic = true;
         return obj;
@@ -681,6 +806,75 @@ public class ProceduralMapGenerator : MonoBehaviour
         return mesh;
     }
 
+    // ---------- Cliffs: ผนังตรงขอบ cell ที่สูงไม่เท่ากัน (หน้าผาระหว่างชั้น ข้างทางลาด และขอบแผนที่ที่สูงกว่า 0) ----------
+
+    private void BuildCliffs()
+    {
+        const float eps = 0.001f;
+        float half = stepSize * 0.5f;
+
+        foreach (var cell in _cells)
+        {
+            Vector3 center = CellToWorld(cell);
+            foreach (var d in Directions4)
+            {
+                Vector2Int n = cell + d;
+                bool hasNeighbor = _cells.Contains(n);
+
+                // ปลายขอบทั้งสองข้าง (local เทียบกลาง cell นี้ และกลาง cell ข้างๆ)
+                var tangent = new Vector2(d.y, d.x);
+                Vector2 pLocal = (Vector2)d * half - tangent * half;
+                Vector2 qLocal = (Vector2)d * half + tangent * half;
+                Vector2 offset = (Vector2)d * stepSize;
+
+                float topP = Terrace.HeightAt(cell, pLocal), topQ = Terrace.HeightAt(cell, qLocal);
+                // ขอบแผนที่: ลงไปถึงใต้ 0 นิดหน่อย ให้ต่อกับขอบบนของ underside สนิท
+                float botP = hasNeighbor ? Terrace.HeightAt(n, pLocal - offset) : -0.1f;
+                float botQ = hasNeighbor ? Terrace.HeightAt(n, qLocal - offset) : -0.1f;
+
+                // สร้างเฉพาะฝั่งที่สูงกว่า กันผนังซ้อนสองชั้น
+                if (topP <= botP + eps && topQ <= botQ + eps) continue;
+                if (!hasNeighbor && topP <= eps && topQ <= eps) continue;
+                botP = Mathf.Min(botP, topP);
+                botQ = Mathf.Min(botQ, topQ);
+
+                Vector3 p = center + new Vector3(pLocal.x, 0f, pLocal.y);
+                Vector3 q = center + new Vector3(qLocal.x, 0f, qLocal.y);
+                // ผนังอยู่ chunk เดียวกับ cell ฝั่งสูง (fade พร้อมที่ราบที่มันเป็นขอบ)
+                MeshLists lists = GetChunk(_cliffChunks, ChunkOf(cell));
+                AddCliffQuad(lists.vertices, lists.uvs, lists.triangles,
+                    new Vector3(p.x, topP, p.z), new Vector3(q.x, topQ, q.z),
+                    new Vector3(p.x, botP, p.z), new Vector3(q.x, botQ, q.z),
+                    new Vector3(d.x, 0f, d.y));
+            }
+        }
+    }
+
+    // ผนังตั้งจากขอบบน (pTop,qTop) ถึงขอบล่าง หันหน้าไปทาง outward (ฝั่งที่ต่ำกว่า)
+    private void AddCliffQuad(List<Vector3> vertices, List<Vector2> uvs, List<int> triangles,
+        Vector3 pTop, Vector3 qTop, Vector3 pBot, Vector3 qBot, Vector3 outward)
+    {
+        // winding เดียวกับ AddQuad (v0,v1,v2 / v2,v1,v3) สลับ p/q ถ้า normal ไม่หันออก
+        // ใช้แกน up แทน pTop - pBot เพราะผนังข้างทางลาดเป็นสามเหลี่ยม ฝั่งหนึ่งสูง 0 จะได้ cross = 0 แล้วไม่สลับ (หน้าหันผิด มองทะลุ)
+        if (Vector3.Dot(Vector3.Cross(Vector3.up, qBot - pBot), outward) < 0f)
+        {
+            (pTop, qTop) = (qTop, pTop);
+            (pBot, qBot) = (qBot, pBot);
+        }
+
+        int baseIndex = vertices.Count;
+        vertices.Add(pBot); vertices.Add(pTop); vertices.Add(qBot); vertices.Add(qTop);
+
+        Vector3 along = new Vector3(Mathf.Abs(outward.z), 0f, Mathf.Abs(outward.x));
+        uvs.Add(new Vector2(Vector3.Dot(pBot, along) / textureWorldSize, pBot.y / textureWorldSize));
+        uvs.Add(new Vector2(Vector3.Dot(pTop, along) / textureWorldSize, pTop.y / textureWorldSize));
+        uvs.Add(new Vector2(Vector3.Dot(qBot, along) / textureWorldSize, qBot.y / textureWorldSize));
+        uvs.Add(new Vector2(Vector3.Dot(qTop, along) / textureWorldSize, qTop.y / textureWorldSize));
+
+        triangles.Add(baseIndex + 0); triangles.Add(baseIndex + 1); triangles.Add(baseIndex + 2);
+        triangles.Add(baseIndex + 2); triangles.Add(baseIndex + 1); triangles.Add(baseIndex + 3);
+    }
+
     // ---------- Hole Blockers: กำแพงล่องหนล้อมบ่อ/รู ตาม sub-cell ที่ BuildSubdividedGeometry เจาะไว้ ----------
 
     private void BuildHoleBlockers(Transform root)
@@ -697,7 +891,7 @@ public class ProceduralMapGenerator : MonoBehaviour
             cellSize = subSize,
             origin = new Vector2(originOffset, originOffset),
             bottomY = Mathf.Min(PitFloorY, 0f) - 0.5f,
-            topY = holeBlockerHeight,
+            topY = Terrace.MaxHeight + holeBlockerHeight, // บ่ออยู่ได้ทุกชั้น (บ่ออยู่กลางที่ราบ กำแพงสูงเกินไม่ไปขวางชั้นอื่น)
             thickness = holeBlockerThickness,
         }, root);
     }
@@ -782,9 +976,10 @@ public class ProceduralMapGenerator : MonoBehaviour
             if (!_cells.Contains(WorldToCell(new Vector3(hole.center.x, 0f, hole.center.y)))) continue;
 
             float r = hole.radius * (1f + holeEdgeJitter * 0.5f);
+            float baseY = Terrace.BaseHeight(WorldToCell(new Vector3(hole.center.x, 0f, hole.center.y)));
             var box = waterObj.AddComponent<BoxCollider>();
             box.isTrigger = true;
-            box.center = new Vector3(hole.center.x, (top + bottom) * 0.5f, hole.center.y);
+            box.center = new Vector3(hole.center.x, baseY + (top + bottom) * 0.5f, hole.center.y);
             box.size = new Vector3(r * 2f, top - bottom, r * 2f);
         }
     }
@@ -831,6 +1026,18 @@ public class ProceduralMapGenerator : MonoBehaviour
         var vertices = new List<Vector3>();
         var triangles = new List<int>();
 
+        // บ่อทั้งบ่ออยู่ชั้นเดียว อิงชั้นจาก sub-cell บ่อที่แตะมุมนี้ (ทุกมุมที่ถูกเรียกแตะ sub-cell บ่ออย่างน้อย 1 อัน)
+        float PondBaseHeight(Vector2Int c)
+        {
+            for (int oz = -1; oz <= 0; oz++)
+                for (int ox = -1; ox <= 0; ox++)
+                {
+                    var sub = new Vector2Int(c.x + ox, c.y + oz);
+                    if (_holeSubCells.Contains(sub)) return Terrace.BaseHeight(SubToCell(sub, res));
+                }
+            return 0f;
+        }
+
         int Corner(Vector2Int c)
         {
             if (cornerIndex.TryGetValue(c, out int index)) return index;
@@ -848,7 +1055,7 @@ public class ProceduralMapGenerator : MonoBehaviour
                 if (level == 0) break;
             }
 
-            float y = -depth * Mathf.Clamp01(level * subSize / waterWalkRampWidth);
+            float y = PondBaseHeight(c) - depth * Mathf.Clamp01(level * subSize / waterWalkRampWidth);
             index = vertices.Count;
             vertices.Add(new Vector3(-cellHalf + c.x * subSize, y, -cellHalf + c.y * subSize));
             cornerIndex[c] = index;
@@ -875,7 +1082,9 @@ public class ProceduralMapGenerator : MonoBehaviour
         // แยก object จาก Pond Water กัน MapBuildAnimator ขยับ collider ตามตอน animate ผิวน้ำ
         var obj = new GameObject("Pond Walk Surface");
         obj.transform.SetParent(root, false);
-        obj.AddComponent<MeshCollider>().sharedMesh = mesh;
+        var col = obj.AddComponent<MeshCollider>();
+        col.sharedMesh = mesh;
+        col.sharedMaterial = Config.pondPhysicsMaterial;
 
         if (markGeneratedStatic) obj.isStatic = true;
     }
@@ -987,6 +1196,7 @@ public class ProceduralMapGenerator : MonoBehaviour
         foreach (var c in _cells)
         {
             if (excluded.Contains(c)) continue;
+            if (Terrace.IsRampAccess(c)) continue; // ห้ามของขวางทางลาด/ปากทางลาด ไม่งั้นอาจขึ้นชั้นบนไม่ได้
             if (addNoiseHoles && IsInsideHole(CellToWorld(c))) continue;
             availableCells.Add(c);
         }
@@ -1015,7 +1225,7 @@ public class ProceduralMapGenerator : MonoBehaviour
                 Vector3 pos = CellToWorld(cell);
                 pos.x += Random.Range(-stepSize, stepSize) * 0.5f * scatterPositionJitter;
                 pos.z += Random.Range(-stepSize, stepSize) * 0.5f * scatterPositionJitter;
-                pos.y = transform.position.y;
+                pos.y = transform.position.y + Terrace.HeightAtWorld(pos);
 
                 CreateScatterObject(scatterContainer.transform, category, pos, fallbackMaterials, validPrefabs);
                 placed++;
@@ -1096,20 +1306,45 @@ public class ProceduralMapGenerator : MonoBehaviour
     }
 
     // path เร็ว: 1 quad เต็มขนาด stepSize ต่อ cell (ใช้ตอนไม่มี noise holes)
-    private void BuildSimpleGeometry(List<Vector3> vertices, List<Vector2> uvs, List<int> triangles)
+    private void BuildSimpleGeometry()
     {
         float half = stepSize * 0.5f;
 
         foreach (var cell in _cells)
         {
             Vector3 center = CellToWorld(cell);
-            AddQuad(vertices, uvs, triangles, center, half);
+            AddTerrainQuad(cell, center, half);
+        }
+    }
+
+    // sub-cell index แบบ global -> cell ที่มันอยู่ (หารปัดลง รองรับค่าติดลบ)
+    private static Vector2Int SubToCell(Vector2Int g, int res) =>
+        new Vector2Int(Mathf.FloorToInt(g.x / (float)res), Mathf.FloorToInt(g.y / (float)res));
+
+    // เหมือน AddQuad แต่ความสูงแต่ละมุมตามชั้น/ทางลาดของ cell (center.y ไม่ใช้)
+    // ลง mesh ของ chunk ที่ cell อยู่ ทางลาดแยกเป็นส่วน Ramps (ทางลาดไม่มีรู/บ่อ เพราะ TerraceLayout กันไว้)
+    private void AddTerrainQuad(Vector2Int cell, Vector3 center, float half)
+    {
+        MeshLists lists = GetChunk(Terrace.IsRamp(cell) ? _rampChunks : _groundChunks, ChunkOf(cell));
+        var vertices = lists.vertices;
+        var uvs = lists.uvs;
+        var triangles = lists.triangles;
+
+        int baseIndex = vertices.Count;
+        AddQuad(vertices, uvs, triangles, center, half);
+
+        Vector3 cellCenter = CellToWorld(cell);
+        for (int i = baseIndex; i < vertices.Count; i++)
+        {
+            Vector3 v = vertices[i];
+            v.y = Terrace.HeightAt(cell, new Vector2(v.x - cellCenter.x, v.z - cellCenter.z));
+            vertices[i] = v;
         }
     }
 
     // path ละเอียด: แบ่งแต่ละ cell เป็น sub-quad ย่อย เพื่อให้ตัดรูขนาดเล็กกว่า stepSize ได้
     // ถ้าเปิด holesAsPonds จะเติมพื้นก้นหลุม + ผนัง (ลง pit lists) และผิวน้ำ (ลง water lists) แทนการเจาะทะลุ
-    private void BuildSubdividedGeometry(List<Vector3> vertices, List<Vector2> uvs, List<int> triangles,
+    private void BuildSubdividedGeometry(
         List<Vector3> pitVertices, List<Vector2> pitUvs, List<int> pitTriangles,
         List<Vector3> waterVertices, List<Vector2> waterUvs, List<int> waterTriangles)
     {
@@ -1142,26 +1377,30 @@ public class ProceduralMapGenerator : MonoBehaviour
         foreach (var g in subCells)
         {
             Vector3 center = SubToWorld(g);
+            Vector2Int cell = SubToCell(g, res);
 
             if (!holeSubs.Contains(g))
             {
-                AddQuad(vertices, uvs, triangles, center, subHalf);
+                AddTerrainQuad(cell, center, subHalf);
                 continue;
             }
 
             if (!ponds) continue; // เจาะทะลุเหมือนเดิม
 
-            center.y = PitFloorY;
+            // บ่ออยู่บนที่ราบชั้นเดียวเสมอ (GenerateNoiseHoleSeeds กันไว้) ความสูงทุกส่วนของบ่ออิงระดับชั้นของ cell
+            float baseY = Terrace.BaseHeight(cell);
+
+            center.y = baseY + PitFloorY;
             AddQuad(pitVertices, pitUvs, pitTriangles, center, subHalf);
 
-            center.y = WaterY;
+            center.y = baseY + WaterY;
             AddQuad(waterVertices, waterUvs, waterTriangles, center, subHalf);
 
             // ผนังเฉพาะด้านที่ติดพื้นปกติ (หรือขอบแผนที่)
             foreach (var d in Directions4)
             {
                 if (holeSubs.Contains(g + d)) continue;
-                AddWall(pitVertices, pitUvs, pitTriangles, SubToWorld(g), d, subHalf, pitDepth);
+                AddWall(pitVertices, pitUvs, pitTriangles, SubToWorld(g) + Vector3.up * baseY, d, subHalf, pitDepth);
             }
         }
     }

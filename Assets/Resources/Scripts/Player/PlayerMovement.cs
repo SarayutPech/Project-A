@@ -2,8 +2,9 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 // เดินด้วย Rigidbody (gravity จาก physics) ทิศตามมุมกล้อง (กด W = เดินขึ้นจอ เหมาะกับกล้อง isometric)
-// ปุ่มเริ่มต้น Keyboard: WASD / ลูกศร, Shift = วิ่ง, Space = กระโดด, Ctrl = dash
-//             Gamepad: left stick, left stick click = วิ่ง, ปุ่มล่าง (A/Cross) = กระโดด, ปุ่มซ้าย (X/Square) = dash
+// ปุ่มเริ่มต้น Keyboard: WASD / ลูกศร, Space = กระโดด, Ctrl = แตะ dash / กดค้าง วิ่ง
+//             Gamepad: left stick, ปุ่มล่าง (A/Cross) = กระโดด, ปุ่มซ้าย (X/Square) = แตะ dash / กดค้าง วิ่ง
+// (ปิด Dash Sprint Same Key = แยกปุ่มแบบเดิม: Shift / left stick click = วิ่ง, Ctrl / ปุ่มซ้าย = dash ตอนกด)
 // ถ้ามี ProceduralMapGenerator ในฉาก จะวาง player ที่จุด Start และล็อกไว้จน MapBuildAnimator เล่นจบ
 //
 // บ่อน้ำ/รู: ถ้า config เปิด Walkable Water จะลุยน้ำได้เหมือนพื้นปกติ (generator สร้างพื้นลาดล่องหนให้ ไม่มี trigger respawn)
@@ -31,6 +32,12 @@ public class PlayerMovement : MonoBehaviour
     [Min(0f)] public float coyoteTime = 0.1f;
     [Tooltip("กดกระโดดก่อนถึงพื้นได้กี่วินาที แล้วจะกระโดดทันทีที่แตะพื้น")]
     [Min(0f)] public float jumpBufferTime = 0.1f;
+    [Tooltip("จำนวนครั้งที่กระโดดได้ก่อนแตะพื้น (1 = กระโดดปกติ, 2 = double jump, 3 = triple ...)")]
+    [Min(1)] public int maxJumps = 2;
+    [Tooltip("ความสูงของครั้งที่กระโดดกลางอากาศ (ครั้งที่ 2 ขึ้นไป)")]
+    [Min(0f)] public float airJumpHeight = 1.2f;
+    [Tooltip("กดปุ่มกระโดดค้าง = ถึงพื้นแล้วกระโดดต่อเองเรื่อยๆ (ครั้งกลางอากาศยังต้องกดใหม่ทุกครั้ง)")]
+    public bool holdToAutoJump = true;
 
     [Header("Dash")]
     [Tooltip("ระยะพุ่งต่อ 1 ครั้ง (world unit) ระหว่าง dash ไม่มี gravity จึงพุ่งข้ามน้ำได้เท่าระยะนี้")]
@@ -42,6 +49,12 @@ public class PlayerMovement : MonoBehaviour
     [Tooltip("dash กลางอากาศได้ 1 ครั้งต่อการลอย (กระโดด + dash ข้ามบ่อกว้างได้)")]
     public bool allowAirDash = true;
 
+    [Header("Dash + Sprint ปุ่มเดียวกัน")]
+    [Tooltip("ใช้ปุ่ม Dash ปุ่มเดียว: กดแล้วปล่อย = dash (เกิดตอนปล่อย) / กดค้างครบ Sprint Hold Time = วิ่งจนกว่าจะปล่อย (ไม่ dash)\nKeyboard ใช้ Dash Key (Sprint Key ไม่ใช้) / Gamepad ใช้ปุ่มซ้าย (X/Square)")]
+    public bool dashSprintSameKey = true;
+    [Tooltip("ต้องกดค้างนานเท่านี้ (วินาที) ถึงเริ่มวิ่ง ปล่อยก่อนนี้ = dash")]
+    [Min(0.05f)] public float sprintHoldTime = 1f;
+
     [Header("Input Keys (Keyboard)")]
     public Key jumpKey = Key.Space;
     public Key sprintKey = Key.LeftShift;
@@ -52,6 +65,10 @@ public class PlayerMovement : MonoBehaviour
     public LayerMask groundLayers = ~0;
     [Tooltip("ระยะตรวจพื้นใต้เท้า")]
     [Min(0.01f)] public float groundCheckDistance = 0.15f;
+    [Tooltip("ชันเกินกี่องศาไม่นับเป็นพื้น (นับเป็นกำแพง) ทางลาดของแผนที่ ≈ 27°")]
+    [Range(10f, 80f)] public float maxSlopeAngle = 50f;
+    [Tooltip("หลุดพื้นเองโดยไม่ได้กระโดด (วิ่งเร็วพ้นหัวทางลาด) ถ้าพื้นอยู่ใต้เท้าไม่เกินนี้จะดูดกลับลงพื้น ไม่เด้งลอย (0 = ปิด) ต่ำกว่าความสูงหน้าผาไว้ ไม่งั้นเดินตกหน้าผาแล้ววาร์ปลง")]
+    [Min(0f)] public float groundSnapDistance = 0.6f;
 
     [Header("Camera Relative")]
     [Tooltip("ถ้าเว้นว่างจะใช้ Camera.main")]
@@ -84,6 +101,8 @@ public class PlayerMovement : MonoBehaviour
         set
         {
             _canMove = value;
+            _dashKeyDownTime = -1f; // ล็อก/ปลดล็อกกลางกดค้าง ไม่ให้ปล่อยปุ่มทีหลังแล้วนับเป็น dash
+            _sprint = false;
             if (_body == null) return;
             if (!value)
             {
@@ -112,12 +131,18 @@ public class PlayerMovement : MonoBehaviour
     private float _lastGroundedTime = float.NegativeInfinity;
     private float _lastJumpPressedTime = float.NegativeInfinity;
     private bool _jumpedSinceGrounded;
+    private int _jumpsUsed; // กระโดดไปแล้วกี่ครั้งตั้งแต่แตะพื้นล่าสุด
+    private bool _jumpHeld;
 
     private bool _dashRequested;
+    private float _dashKeyDownTime = -1f; // เวลาที่เริ่มกดปุ่ม dash/sprint (-1 = ไม่ได้กดอยู่)
     private float _dashTimeLeft;
     private Vector3 _dashDir;
     private float _lastDashTime = float.NegativeInfinity;
     private bool _airDashUsed;
+
+    private Vector3 _groundNormal = Vector3.up;
+    private readonly RaycastHit[] _wallHits = new RaycastHit[8];
 
     private Collider[] _holeBlockers = new Collider[0];
     private bool _ignoringHoleBlockers;
@@ -145,6 +170,18 @@ public class PlayerMovement : MonoBehaviour
         _renderers = GetComponentsInChildren<Renderer>(true);
         SetupPhysics();
         CanMove = _canMove;
+        WarnExtraColliders();
+    }
+
+    // collider ตันอื่นบนตัว player (เช่น BoxCollider / CharacterController ค้างจาก prefab เก่า) จะแตะพื้นด้วย friction ของมันเอง
+    // ทำให้ฝืดบนทางลาด/ติดกำแพง ทั้งที่ capsule ตั้ง friction 0 ไว้แล้ว
+    private void WarnExtraColliders()
+    {
+        foreach (var col in GetComponents<Collider>())
+        {
+            if (col == _capsule || col.isTrigger) continue;
+            Debug.LogWarning($"[{nameof(PlayerMovement)}] '{name}' มี {col.GetType().Name} เพิ่มจาก CapsuleCollider -> ควรลบออก (ทำให้ฝืด/ติดกำแพง)", this);
+        }
     }
 
     // ตั้งค่า Rigidbody/Collider ให้เหมาะกับตัวละคร (ไม่ล้ม ไม่ติดผนัง)
@@ -270,9 +307,17 @@ public class PlayerMovement : MonoBehaviour
 
         // อ่าน input ใน Update (ไม่พลาดปุ่มที่กดสั้นๆ) แล้วไปใช้ใน FixedUpdate
         _moveInput = ReadMoveInput();
-        _sprint = IsSprinting();
         if (JumpPressedThisFrame()) _lastJumpPressedTime = Time.time;
-        if (DashPressedThisFrame()) _dashRequested = true;
+        _jumpHeld = JumpHeld();
+        if (dashSprintSameKey)
+        {
+            ReadDashSprintKey();
+        }
+        else
+        {
+            _sprint = IsSprinting();
+            if (DashPressedThisFrame()) _dashRequested = true;
+        }
 
         if (transform.position.y < respawnBelowY) RespawnAtSafePosition();
     }
@@ -300,21 +345,45 @@ public class PlayerMovement : MonoBehaviour
         }
 
         Vector3 velocity = _body.linearVelocity;
-
-        // แกนนอน: เร่ง/เบรกเข้าหาความเร็วที่ต้องการ แกนตั้งปล่อยให้ gravity ของ Rigidbody จัดการ
         Vector3 desired = move * (moveSpeed * (_sprint ? sprintMultiplier : 1f));
-        Vector3 horizontal = new Vector3(velocity.x, 0f, velocity.z);
-        float accel = IsGrounded ? groundAcceleration : airAcceleration;
-        horizontal = Vector3.MoveTowards(horizontal, desired, accel * Time.fixedDeltaTime);
-        velocity.x = horizontal.x;
-        velocity.z = horizontal.z;
+        bool onGround = IsGrounded && !_jumpedSinceGrounded;
 
-        bool canJump = Time.time - _lastGroundedTime <= coyoteTime && !_jumpedSinceGrounded;
-        bool wantsJump = Time.time - _lastJumpPressedTime <= jumpBufferTime;
-        if (canJump && wantsJump)
+        if (onGround)
         {
-            // v = sqrt(2gh) ได้ความสูง jumpHeight พอดีตาม gravity ปัจจุบัน
-            velocity.y = Mathf.Sqrt(2f * Mathf.Abs(Physics.gravity.y) * jumpHeight);
+            // บนพื้น: วิ่งไปตามระนาบพื้น (ขึ้น/ลงทางลาดด้วยความเร็วเท่าพื้นเรียบ ไม่ดันเข้าเนิน ไม่เด้งตอนลง)
+            if (desired.sqrMagnitude > 0.0001f)
+                desired = Vector3.ProjectOnPlane(desired, _groundNormal).normalized * desired.magnitude;
+            // หักความเร็วเข้าระนาบพื้นปัจจุบันทันที (เช่นจากทางลาดขึ้นมาพื้นเรียบ ความเร็วแกนตั้งหายเลย ไม่พุ่งลอยต่อ)
+            velocity = Vector3.ProjectOnPlane(velocity, _groundNormal);
+            velocity = Vector3.MoveTowards(velocity, desired, groundAcceleration * Time.fixedDeltaTime);
+        }
+        else
+        {
+            // กลางอากาศ: คุมแค่แกนนอน แกนตั้งปล่อยให้ gravity จัดการ
+            Vector3 horizontal = new Vector3(velocity.x, 0f, velocity.z);
+            horizontal = Vector3.MoveTowards(horizontal, desired, airAcceleration * Time.fixedDeltaTime);
+            velocity.x = horizontal.x;
+            velocity.z = horizontal.z;
+        }
+
+        // ตัดส่วนที่ดันเข้ากำแพง/หน้าผาทิ้ง -> ไถลไปตามกำแพงแทนการกดค้าง (กันติดกำแพงตอนกระโดด)
+        velocity = SlideAlongWalls(velocity);
+
+        // เดินตกขอบเองเกิน coyote time = นับว่าใช้ครั้งบนพื้นไปแล้ว (เหลือแค่ครั้งกลางอากาศ)
+        bool inCoyote = Time.time - _lastGroundedTime <= coyoteTime;
+        if (!inCoyote && _jumpsUsed == 0) _jumpsUsed = 1;
+
+        bool groundJump = inCoyote && _jumpsUsed == 0;
+        bool airJump = !groundJump && _jumpsUsed < maxJumps;
+        bool pressed = Time.time - _lastJumpPressedTime <= jumpBufferTime;
+        // กดค้าง: ถึงพื้นเมื่อไหร่กระโดดต่อเอง (เฉพาะจากพื้น กดค้างไม่ใช้ครั้งกลางอากาศ)
+        bool held = holdToAutoJump && _jumpHeld && groundJump;
+
+        if ((groundJump || airJump) && (pressed || held))
+        {
+            // v = sqrt(2gh) ได้ความสูง jumpHeight พอดีตาม gravity ปัจจุบัน (ครั้งกลางอากาศตั้งทับความเร็วตก)
+            velocity.y = Mathf.Sqrt(2f * Mathf.Abs(Physics.gravity.y) * (groundJump ? jumpHeight : airJumpHeight));
+            _jumpsUsed++;
             _jumpedSinceGrounded = true;
             _lastJumpPressedTime = float.NegativeInfinity;
             IsGrounded = false;
@@ -322,9 +391,16 @@ public class PlayerMovement : MonoBehaviour
 
         _body.linearVelocity = velocity;
 
-        // ตกลงเร็วกว่าตอนขึ้น (gravity ปกติมาจาก Rigidbody อยู่แล้ว เติมเฉพาะส่วนเกิน)
-        if (velocity.y < 0f && fallGravityMultiplier > 1f)
+        if (onGround && !_jumpedSinceGrounded)
+        {
+            // ยืนบนพื้น: หักล้าง gravity ไม่ให้ไถลลงเนิน/ถ่วงตอนขึ้นเนิน (ความเร็วแกนตั้งมาจากระนาบพื้นแล้ว)
+            _body.AddForce(-Physics.gravity, ForceMode.Acceleration);
+        }
+        else if (velocity.y < 0f && fallGravityMultiplier > 1f)
+        {
+            // ตกลงเร็วกว่าตอนขึ้น (gravity ปกติมาจาก Rigidbody อยู่แล้ว เติมเฉพาะส่วนเกิน)
             _body.AddForce(Physics.gravity * (fallGravityMultiplier - 1f), ForceMode.Acceleration);
+        }
 
         if (move.sqrMagnitude > 0.0001f)
         {
@@ -333,6 +409,46 @@ public class PlayerMovement : MonoBehaviour
         }
 
         UpdateHoleBlockerCollision();
+    }
+
+    // ---------- Walls ----------
+
+    private float MinGroundNormalY => Mathf.Cos(maxSlopeAngle * Mathf.Deg2Rad);
+
+    // CapsuleCast ไปทางที่กำลังเคลื่อนที่ในแนวนอน ถ้าเจอผิวชัน (กำแพง/หน้าผา) ให้ตัดความเร็วส่วนที่พุ่งเข้าหามันทิ้ง
+    private Vector3 SlideAlongWalls(Vector3 velocity)
+    {
+        Vector3 horizontal = new Vector3(velocity.x, 0f, velocity.z);
+        float speed = horizontal.magnitude;
+        if (speed < 0.001f) return velocity;
+
+        Vector3 dir = horizontal / speed;
+        float scale = Mathf.Max(transform.lossyScale.x, transform.lossyScale.z);
+        float radius = _capsule.radius * scale * 0.95f;
+        float halfLine = Mathf.Max(0f, _capsule.height * 0.5f * transform.lossyScale.y - _capsule.radius * scale);
+        Vector3 center = transform.TransformPoint(_capsule.center);
+        // ยกปลายล่างขึ้นเล็กน้อย กันไปโดนพื้น/ขอบทางลาดใต้เท้าแล้วนับเป็นกำแพง
+        Vector3 bottom = center - Vector3.up * halfLine + Vector3.up * 0.1f;
+        Vector3 top = center + Vector3.up * halfLine;
+
+        int count = Physics.CapsuleCastNonAlloc(bottom, top, radius, dir, _wallHits,
+            speed * Time.fixedDeltaTime + 0.05f, groundLayers, QueryTriggerInteraction.Ignore);
+
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = _wallHits[i];
+            if (hit.collider.attachedRigidbody == _body) continue;
+            if (_ignoringHoleBlockers && System.Array.IndexOf(_holeBlockers, hit.collider) >= 0) continue;
+            if (hit.normal.y >= MinGroundNormalY) continue; // พื้น/ทางลาด เดินขึ้นได้
+
+            Vector3 wallNormal = new Vector3(hit.normal.x, 0f, hit.normal.z);
+            if (wallNormal.sqrMagnitude < 0.0001f) continue;
+            wallNormal.Normalize();
+
+            float into = Vector3.Dot(velocity, wallNormal);
+            if (into < 0f) velocity -= wallNormal * into;
+        }
+        return velocity;
     }
 
     // ---------- Dash ----------
@@ -424,36 +540,75 @@ public class PlayerMovement : MonoBehaviour
 
     // ---------- Ground Check ----------
 
-    // SphereCast จากในตัวลงล่าง ข้าม trigger (เช่นน้ำในบ่อ) และตัวเอง
-    private void UpdateGrounded()
+    // SphereCast จากกลางตัวลงล่าง หาพื้นที่ใกล้สุดที่ขอบล่าง sphere เลยเท้าลงไปไม่เกิน extraDistance
+    // ข้าม trigger (เช่นน้ำในบ่อ) ตัวเอง และผิวชันเกิน maxSlopeAngle
+    // footGap = ระยะจากเท้าลงไปถึงพื้น (ติดลบ/0 = แตะอยู่)
+    private bool FindGround(float extraDistance, out Collider ground, out Vector3 normal, out float footGap)
     {
         float scale = Mathf.Max(transform.lossyScale.x, transform.lossyScale.z);
         float radius = _capsule.radius * scale * 0.95f;
         Vector3 origin = transform.TransformPoint(_capsule.center);
-
-        // เริ่มยิง sphere จากกลาง capsule ให้ขอบล่างของ sphere เลยเท้าลงไปอีก groundCheckDistance
         float footY = transform.position.y - FootToPivot();
-        float castDistance = Mathf.Max(groundCheckDistance, origin.y - footY - radius + groundCheckDistance);
+        float toFoot = origin.y - footY - radius; // ระยะที่ sphere ต้องเลื่อนลงจนขอบล่างถึงเท้า
 
-        Collider groundCollider = null;
-        var hits = Physics.SphereCastAll(origin, radius, Vector3.down, castDistance, groundLayers, QueryTriggerInteraction.Ignore);
+        ground = null;
+        normal = Vector3.up;
+        footGap = 0f;
+        float nearest = float.PositiveInfinity;
+
+        // เลือกพื้นที่ใกล้สุด (SphereCastAll ไม่เรียงตามระยะ) เพราะใช้ normal ของมันเป็นระนาบเดิน
+        var hits = Physics.SphereCastAll(origin, radius, Vector3.down, Mathf.Max(extraDistance, toFoot + extraDistance),
+            groundLayers, QueryTriggerInteraction.Ignore);
         foreach (var hit in hits)
         {
             if (hit.collider.attachedRigidbody == _body) continue;
             if (_ignoringHoleBlockers && System.Array.IndexOf(_holeBlockers, hit.collider) >= 0) continue; // ทะลุอยู่ ไม่นับเป็นพื้น
-            groundCollider = hit.collider;
-            break;
+            // ผิวชันเกิน (กำแพง/หน้าผา) ไม่นับเป็นพื้น ไม่งั้นกระโดดชนกำแพงแล้วค้าง/กระโดดซ้ำได้
+            // (hit ที่ทับตั้งแต่เริ่ม cast ได้ distance 0 และ normal ชี้ย้อนทิศ cast = ขึ้น นับเป็นพื้นตามเดิม)
+            if (hit.distance > 0f && hit.normal.y < MinGroundNormalY) continue;
+            if (hit.distance >= nearest) continue;
+            nearest = hit.distance;
+            ground = hit.collider;
+            normal = hit.distance > 0f ? hit.normal : Vector3.up;
+            footGap = hit.distance - toFoot;
         }
-        bool grounded = groundCollider != null;
+        return ground != null;
+    }
+
+    // ดึงตัวลงแปะพื้นที่อยู่ใต้เท้าไม่เกิน groundSnapDistance และหักความเร็วส่วนที่พุ่งออกจากพื้นทิ้ง (คงความเร็วรวมไว้)
+    private bool SnapToGround(out Collider ground)
+    {
+        if (!FindGround(groundSnapDistance, out ground, out Vector3 normal, out float footGap)) return false;
+
+        if (footGap > 0f) _body.position += Vector3.down * footGap;
+
+        Vector3 velocity = _body.linearVelocity;
+        float speed = velocity.magnitude;
+        float away = Vector3.Dot(velocity, normal);
+        if (away > 0f) _body.linearVelocity = (velocity - normal * away).normalized * speed;
+
+        _groundNormal = normal;
+        return true;
+    }
+
+    private void UpdateGrounded()
+    {
+        bool wasOnGround = IsGrounded && !_jumpedSinceGrounded;
+        bool grounded = FindGround(groundCheckDistance, out Collider groundCollider, out _groundNormal, out _);
 
         // ยังพุ่งขึ้นจากการกระโดดอยู่ ไม่นับว่าแตะพื้น (กัน coyote time กระโดดซ้ำกลางอากาศ)
         if (grounded && _body.linearVelocity.y > 0.1f && _jumpedSinceGrounded) grounded = false;
 
+        // หลุดพื้นเองโดยไม่ได้กระโดด (วิ่งพ้นหัวทางลาด/ขอบเนิน) -> ดูดกลับลงพื้นถ้าพื้นอยู่ไม่ไกล กันตัวเด้งลอย
+        if (!grounded && wasOnGround && !IsDashing && SnapToGround(out groundCollider)) grounded = true;
+
         IsGrounded = grounded;
+        if (!grounded) _groundNormal = Vector3.up;
         if (!grounded) return;
 
         _lastGroundedTime = Time.time;
         _jumpedSinceGrounded = false;
+        _jumpsUsed = 0;
         _airDashUsed = false;
 
         // จำจุดปลอดภัยไว้ respawn ตอนตกน้ำ (ไม่นับก้นหลุม และตอนยังทับกำแพงบ่อ)
@@ -550,6 +705,15 @@ public class PlayerMovement : MonoBehaviour
         return gamepad != null && gamepad.leftStickButton.isPressed;
     }
 
+    private bool JumpHeld()
+    {
+        var keyboard = Keyboard.current;
+        if (keyboard != null && keyboard[jumpKey].isPressed) return true;
+
+        var gamepad = Gamepad.current;
+        return gamepad != null && gamepad.buttonSouth.isPressed;
+    }
+
     private bool JumpPressedThisFrame()
     {
         var keyboard = Keyboard.current;
@@ -557,6 +721,39 @@ public class PlayerMovement : MonoBehaviour
 
         var gamepad = Gamepad.current;
         return gamepad != null && gamepad.buttonSouth.wasPressedThisFrame;
+    }
+
+    // ปุ่มเดียว: แตะ = dash ตอนปล่อย / ค้างครบ sprintHoldTime = วิ่งจนปล่อย
+    private void ReadDashSprintKey()
+    {
+        if (DashPressedThisFrame()) _dashKeyDownTime = Time.time;
+
+        if (_dashKeyDownTime < 0f)
+        {
+            _sprint = false;
+            return;
+        }
+
+        bool heldLongEnough = Time.time - _dashKeyDownTime >= sprintHoldTime;
+        if (DashHeld())
+        {
+            _sprint = heldLongEnough;
+            return;
+        }
+
+        // เพิ่งปล่อย (รวมกรณีกด-ปล่อยในเฟรมเดียว)
+        if (!heldLongEnough) _dashRequested = true;
+        _dashKeyDownTime = -1f;
+        _sprint = false;
+    }
+
+    private bool DashHeld()
+    {
+        var keyboard = Keyboard.current;
+        if (keyboard != null && keyboard[dashKey].isPressed) return true;
+
+        var gamepad = Gamepad.current;
+        return gamepad != null && gamepad.buttonWest.isPressed;
     }
 
     private bool DashPressedThisFrame()

@@ -348,7 +348,7 @@ MonoBehaviour:
   includeScatterObjects: 1
   extraOccluders: []
   minOccluderHeight: 1.5
-  occludedOpacity: 1
+  occludedOpacity: 0.3
   fadeOutDuration: 0.25
   fadeInDuration: 0.4
   showOutline: 1

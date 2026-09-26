@@ -47,6 +47,16 @@ public class ProceduralMapConfig : ScriptableObject
         new ScatterCategory { categoryName = "Item", color = Color.yellow, count = 5 },
     };
 
+    [Header("Physics Materials (เว้นว่าง = ค่า default ของ Unity)")]
+    [Tooltip("ผิวพื้นเรียบ")]
+    public PhysicsMaterial groundPhysicsMaterial;
+    [Tooltip("ทางลาดระหว่างชั้น (แยก collider จากพื้น)")]
+    public PhysicsMaterial rampPhysicsMaterial;
+    [Tooltip("ผนังหน้าผา / ข้างทางลาด / ขอบแผนที่")]
+    public PhysicsMaterial cliffPhysicsMaterial;
+    [Tooltip("บ่อน้ำ: พื้นลุยน้ำ + ก้นหลุม/ผนังหลุม")]
+    public PhysicsMaterial pondPhysicsMaterial;
+
     [Header("Post-Process: Smoothing")]
     public bool smoothEdges = true;
     [Range(1, 20)] public int smoothIterations = 1;
@@ -55,6 +65,22 @@ public class ProceduralMapConfig : ScriptableObject
     [Header("Post-Process: Connectivity")]
     public bool connectIslands = true;
     public bool fillEnclosedHoles = true;
+
+    [Header("Terraces (ความสูงหลายชั้น)")]
+    [Tooltip("แบ่งพื้นเป็นชั้นๆ มีหน้าผาคั่น และทางลาดเชื่อมให้เดินถึงทุกชั้นจากจุด Start เสมอ")]
+    public bool terraces = true;
+    [Tooltip("จำนวนชั้นทั้งหมด (1 = พื้นเรียบ) จุด Start อยู่ชั้นล่างสุดเสมอ")]
+    [Range(1, 6)] public int terraceLevels = 3;
+    [Tooltip("ความสูงต่อชั้น (world unit) ทางลาดยาว 1 Step Size ความชัน = ค่านี้ / Step Size (1.5 / 3 ≈ 27°)")]
+    [Min(0.1f)] public float terraceHeight = 1.5f;
+    [Tooltip("จำนวน cell โดยประมาณต่อ 1 ที่ราบ ยิ่งน้อยยิ่งมีหน้าผา/ชั้นย่อยเยอะ")]
+    [Min(2)] public int terraceRegionSize = 30;
+    [Tooltip("โอกาสที่ที่ราบติดกันอยู่ชั้นเดียวกัน (ไม่มีหน้าผาคั่น)")]
+    [Range(0f, 1f)] public float terraceFlatChance = 0.3f;
+    [Tooltip("material ผนังหน้าผา ถ้าไม่ตั้งค่าจะใช้ material ใต้เกาะ (Underside)")]
+    public Material cliffMaterial;
+    [Tooltip("แบ่ง mesh พื้น/ทางลาด/หน้าผาเป็นก้อนละกี่ x กี่ cell -> ตอนเนินบัง player จะ fade แค่ก้อนที่บัง (ยิ่งเล็ก fade แม่นขึ้น แต่ object/draw call เยอะขึ้น)")]
+    [Range(2, 32)] public int terrainChunkSize = 6;
 
     [Header("Post-Process: Noise Holes")]
     [Tooltip("เจาะรูขนาดเล็กลงในพื้น ไม่ผูกกับขนาด Step Size แล้ว")]

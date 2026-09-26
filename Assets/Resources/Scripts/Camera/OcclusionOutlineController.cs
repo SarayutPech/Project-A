@@ -9,10 +9,11 @@ using UnityEngine.Rendering;
 //   - URP Lit / Simple Lit / Unlit
 //   - Shader Graph ที่เปิด Graph Settings > Allow Material Override และต่อ Alpha block
 //     (ถ้ามี property reference "_FadeAlpha" ใน graph จะถูกตั้งค่าความโปร่งให้)
-// material ที่ไม่รองรับจะใช้ material เส้นขอบล้วน (Custom/OcclusionOutline) แทน ข้างในโปร่งใสทั้งหมด
+// material ที่ไม่รองรับจะใช้ URP Lit โปร่งแสงแทนชั่วคราว (Fade Unsupported With Lit)
+// หรือถ้าปิดไว้จะใช้ material เส้นขอบล้วน (Custom/OcclusionOutline) แทน ข้างในโปร่งใสทั้งหมด
 //
 // ผู้สมัครเป็นตัวบัง: object ที่ generator scatter ไว้ (แต่ละ child ของ Scattered Objects = 1 ชิ้น)
-// + รายการ Extra Occluders ที่ลากใส่เอง
+// + chunk ของพื้น (เนิน/หน้าผา) + รายการ Extra Occluders ที่ลากใส่เอง
 // หมายเหตุ: ถ้าเปิด Combine Scatter Meshes ไว้ จะ fade ทั้ง batch ก้อนใหญ่
 [RequireComponent(typeof(Camera))]
 public class OcclusionOutlineController : MonoBehaviour
@@ -32,10 +33,18 @@ public class OcclusionOutlineController : MonoBehaviour
     public List<Transform> extraOccluders = new List<Transform>();
     [Tooltip("สูงไม่ถึงนี้ไม่นับเป็นตัวบัง (world unit) ของเตี้ยๆ อย่างก้อนหินเล็กจะไม่ถูก fade")]
     [Min(0f)] public float minOccluderHeight = 1.5f;
+    [Tooltip("ใช้ chunk ของพื้น (เนิน/หน้าผาที่ generator แบ่งไว้) เป็นตัวบังด้วย เช็คบังด้วย collider จริง ไม่ใช่ bounds")]
+    public bool includeTerrainChunks = true;
+    [Tooltip("chunk พื้นต้องสูงกว่าเท้า player อย่างน้อยเท่านี้ถึงนับเป็นตัวบัง (กันพื้นที่ยืนอยู่ถูก fade)")]
+    [Min(0f)] public float terrainMinRise = 0.3f;
 
     [Header("Fade")]
     [Tooltip("ความทึบตอนบัง 0 = หายเหลือแต่เส้นขอบ, 1 = ทึบเหมือนเดิม")]
     [Range(0f, 1f)] public float occludedOpacity = 0.3f;
+    [Tooltip("material ที่ทำโปร่งแสงเองไม่ได้ (ไม่มี _Surface เช่น Shader Graph ที่ไม่เปิด Allow Material Override) ให้ใช้ URP Lit โปร่งแสงแทนระหว่างบัง\nปิด = เหลือแต่เส้นขอบ (ข้างในหายหมด)")]
+    public bool fadeUnsupportedWithLit = true;
+    [Tooltip("สีของ URP Lit ที่ใช้แทน ถ้า material เดิมไม่มีสีหลักให้ดึง")]
+    public Color fallbackFadeColor = new Color(0.85f, 0.85f, 0.85f, 1f);
     [Tooltip("เวลาที่ใช้ fade จางลงตอนเริ่มบัง (วินาที)")]
     [Min(0f)] public float fadeOutDuration = 0.25f;
     [Tooltip("เวลาที่ใช้ fade กลับทึบตอนพ้น (วินาที)")]
@@ -53,6 +62,7 @@ public class OcclusionOutlineController : MonoBehaviour
     {
         public Transform root;
         public Renderer[] renderers;
+        public Collider[] colliders;           // มีเฉพาะ chunk พื้น: เช็คบังด้วย collider (bounds ของเนินหยาบเกิน)
         public Material[][] originalMaterials; // null = ยังใช้ material เดิมอยู่
         public bool[][] fadeSlots;             // slot ไหนเป็น material transparent ที่ปรับ alpha ได้
         public float fade;                     // 0 = ปกติ, 1 = จางเต็มที่
@@ -72,6 +82,7 @@ public class OcclusionOutlineController : MonoBehaviour
     private readonly List<Occluder> _animating = new List<Occluder>(); // fade > 0 หรือกำลังบัง
     private readonly Dictionary<Material, Material> _fadeClones = new Dictionary<Material, Material>(); // null = ไม่รองรับ transparent
     private readonly Vector3[] _samplePoints = new Vector3[3];
+    private float _targetFootY;
     private MaterialPropertyBlock _block;
     private ProceduralMapGenerator _subscribedGenerator;
 
@@ -119,13 +130,18 @@ public class OcclusionOutlineController : MonoBehaviour
 
         foreach (var extra in extraOccluders)
             if (extra != null) AddOccluder(extra);
+
+        if (includeTerrainChunks && gen != null)
+            foreach (var chunk in gen.TerrainChunks)
+                if (chunk != null) AddOccluder(chunk, true);
     }
 
-    private void AddOccluder(Transform root)
+    private void AddOccluder(Transform root, bool terrain = false)
     {
         var renderers = root.GetComponentsInChildren<Renderer>(true);
         if (renderers.Length == 0) return;
-        _occluders.Add(new Occluder { root = root, renderers = renderers });
+        var colliders = terrain ? root.GetComponentsInChildren<Collider>(true) : null;
+        _occluders.Add(new Occluder { root = root, renderers = renderers, colliders = colliders });
     }
 
     private void LateUpdate()
@@ -138,11 +154,22 @@ public class OcclusionOutlineController : MonoBehaviour
         foreach (var occ in _occluders)
         {
             bool occluded = false;
-            if (hasTarget && occ.root != null && !t.IsChildOf(occ.root) &&
-                TryGetBounds(occ, out Bounds bounds) && bounds.size.y >= minOccluderHeight)
+            if (hasTarget && occ.root != null && !t.IsChildOf(occ.root) && TryGetBounds(occ, out Bounds bounds))
             {
-                bounds.Expand(checkRadius * 2f);
-                occluded = BlocksAnySample(bounds);
+                if (occ.colliders != null && occ.colliders.Length > 0)
+                {
+                    // chunk พื้น: ต้องมีส่วนที่สูงกว่าเท้า แล้วเส้นสายตาต้องชน collider จริง
+                    if (bounds.max.y > _targetFootY + terrainMinRise)
+                    {
+                        bounds.Expand(checkRadius * 2f);
+                        occluded = BlocksAnySample(bounds) && CollidersBlockAnySample(occ.colliders);
+                    }
+                }
+                else if (bounds.size.y >= minOccluderHeight)
+                {
+                    bounds.Expand(checkRadius * 2f);
+                    occluded = BlocksAnySample(bounds);
+                }
             }
 
             occ.occluded = occluded;
@@ -189,23 +216,38 @@ public class OcclusionOutlineController : MonoBehaviour
         _samplePoints[0] = new Vector3(b.center.x, b.min.y + b.extents.y * 0.25f, b.center.z);
         _samplePoints[1] = b.center;
         _samplePoints[2] = new Vector3(b.center.x, b.max.y - b.extents.y * 0.1f, b.center.z);
+        _targetFootY = b.min.y;
+    }
+
+    // เส้นสายตาจากกล้องไปจุดเช็ค (ortho: เส้นขนานกับทิศกล้อง เริ่มที่ระนาบกล้อง / perspective: เริ่มที่ตัวกล้อง)
+    private bool TryGetSightRay(Vector3 point, out Ray ray, out float distance)
+    {
+        Vector3 camPos = transform.position;
+        Vector3 forward = transform.forward;
+        Vector3 origin = _camera.orthographic ? point - forward * Vector3.Dot(point - camPos, forward) : camPos;
+        Vector3 toPoint = point - origin;
+        distance = toPoint.magnitude;
+        ray = distance < 0.001f ? default : new Ray(origin, toPoint / distance);
+        return distance >= 0.001f;
     }
 
     private bool BlocksAnySample(Bounds bounds)
     {
-        Vector3 camPos = transform.position;
-        Vector3 forward = transform.forward;
-
         foreach (var p in _samplePoints)
         {
-            // ortho: เส้นขนานกับทิศกล้อง เริ่มที่ระนาบกล้อง / perspective: เริ่มที่ตัวกล้อง
-            Vector3 origin = _camera.orthographic ? p - forward * Vector3.Dot(p - camPos, forward) : camPos;
-            Vector3 toPoint = p - origin;
-            float distance = toPoint.magnitude;
-            if (distance < 0.001f) continue;
-
-            var ray = new Ray(origin, toPoint / distance);
+            if (!TryGetSightRay(p, out Ray ray, out float distance)) continue;
             if (bounds.IntersectRay(ray, out float hitDistance) && hitDistance < distance) return true;
+        }
+        return false;
+    }
+
+    private bool CollidersBlockAnySample(Collider[] colliders)
+    {
+        foreach (var p in _samplePoints)
+        {
+            if (!TryGetSightRay(p, out Ray ray, out float distance)) continue;
+            foreach (var col in colliders)
+                if (col != null && col.enabled && col.Raycast(ray, out _, distance - checkRadius)) return true;
         }
         return false;
     }
@@ -343,10 +385,42 @@ public class OcclusionOutlineController : MonoBehaviour
             clone = new Material(source) { name = source.name + " (Fade)" };
             MakeTransparent(clone);
         }
+        else if (fadeUnsupportedWithLit)
+        {
+            clone = CreateLitStandIn(source);
+        }
 
         _fadeClones[source] = clone;
         return clone;
     }
+
+    // material ที่ทำโปร่งแสงเองไม่ได้ (เช่น Shader Graph ที่ไม่เปิด Allow Material Override):
+    // ใช้ URP Lit โปร่งแสงแทนระหว่างบัง เอา texture/สีหลักจาก material เดิมถ้าหาเจอ (ลวดลายเฉพาะของ shader เดิมจะหายตอนจาง)
+    private Material CreateLitStandIn(Material source)
+    {
+        Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+        if (lit == null) return null;
+
+        var mat = new Material(lit) { name = source.name + " (Fade Stand-in)" };
+        Color color = fallbackFadeColor;
+        foreach (string colorProp in StandInColorProps)
+            if (source.HasProperty(colorProp)) { color = source.GetColor(colorProp); break; }
+        mat.SetColor(BaseColorId, color);
+
+        foreach (string texProp in StandInTextureProps)
+        {
+            if (!source.HasProperty(texProp) || source.GetTexture(texProp) == null) continue;
+            mat.SetTexture("_BaseMap", source.GetTexture(texProp));
+            mat.SetTextureScale("_BaseMap", source.GetTextureScale(texProp));
+            break;
+        }
+
+        MakeTransparent(mat);
+        return mat;
+    }
+
+    private static readonly string[] StandInColorProps = { "_BaseColor", "_Color" };
+    private static readonly string[] StandInTextureProps = { "_BaseMap", "_MainTex", "_GrassTexture", "_Albedo" };
 
     // ตั้งค่าเหมือนเลือก Surface Type = Transparent, Blending = Alpha ใน Inspector ของ URP
     private static void MakeTransparent(Material mat)

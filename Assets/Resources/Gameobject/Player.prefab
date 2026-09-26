@@ -11,9 +11,9 @@ GameObject:
   - component: {fileID: 6206535814838632362}
   - component: {fileID: 4882261182667235011}
   - component: {fileID: 7147485877337281578}
-  - component: {fileID: 1905731624571959387}
-  - component: {fileID: 5069610559512927534}
   - component: {fileID: 7703290480706648453}
+  - component: {fileID: 1218490976296656953}
+  - component: {fileID: 2732876804173154947}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -93,8 +93,80 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!65 &1905731624571959387
-BoxCollider:
+--- !u!114 &7703290480706648453
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cd078cb9f99841c40bc335f72906bf03, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
+  moveSpeed: 10
+  sprintMultiplier: 1.6
+  groundAcceleration: 60
+  airAcceleration: 20
+  rotationSpeed: 12
+  jumpHeight: 1.5
+  fallGravityMultiplier: 2
+  coyoteTime: 0.1
+  jumpBufferTime: 0.1
+  dashDistance: 4
+  dashDuration: 0.18
+  dashCooldown: 0.5
+  allowAirDash: 1
+  dashSprintSameKey: 1
+  sprintHoldTime: 0.2
+  jumpKey: 1
+  sprintKey: 51
+  dashKey: 51
+  groundLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  groundCheckDistance: 0.15
+  maxSlopeAngle: 50
+  groundSnapDistance: 0.6
+  cameraTransform: {fileID: 0}
+  generator: {fileID: 0}
+  buildAnimator: {fileID: 0}
+  spawnAtMapStart: 1
+  spawnHeightOffset: 0.05
+  lockUntilMapBuilt: 1
+  hideUntilMapBuilt: 1
+  respawnBelowY: -20
+  safeEdgeMargin: 0.5
+--- !u!54 &1218490976296656953
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
+--- !u!136 &2732876804173154947
+CapsuleCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -111,55 +183,8 @@ BoxCollider:
   m_IsTrigger: 0
   m_ProvidesContacts: 0
   m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!143 &5069610559512927534
-CharacterController:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9129803999362386158}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Height: 1
+  serializedVersion: 2
   m_Radius: 0.5
-  m_SlopeLimit: 45
-  m_StepOffset: 0.3
-  m_SkinWidth: 0.08
-  m_MinMoveDistance: 0.001
+  m_Height: 1
+  m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &7703290480706648453
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9129803999362386158}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cd078cb9f99841c40bc335f72906bf03, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
-  moveSpeed: 20
-  sprintMultiplier: 1.6
-  rotationSpeed: 12
-  gravity: -20
-  cameraTransform: {fileID: 0}
-  generator: {fileID: 0}
-  buildAnimator: {fileID: 0}
-  spawnAtMapStart: 1
-  spawnHeightOffset: 0.05
-  lockUntilMapBuilt: 1
-  hideUntilMapBuilt: 1
-  respawnBelowY: -20

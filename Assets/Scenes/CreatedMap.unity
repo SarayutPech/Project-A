@@ -505,13 +505,17 @@ MonoBehaviour:
   includeScatterObjects: 1
   extraOccluders: []
   minOccluderHeight: 1.5
-  occludedOpacity: 1
+  includeTerrainChunks: 1
+  terrainMinRise: 0.3
+  occludedOpacity: 0.6
+  fadeUnsupportedWithLit: 1
+  fallbackFadeColor: {r: 0.85, g: 0.85, b: 0.85, a: 1}
   fadeOutDuration: 0.25
   fadeInDuration: 0.4
   showOutline: 1
   outlineMaterial: {fileID: 0}
   outlineColor: {r: 0, g: 0, b: 0, a: 0.9}
-  outlineWidth: 4
+  outlineWidth: 2
 --- !u!1 &367290713
 GameObject:
   m_ObjectHideFlags: 0
@@ -1007,7 +1011,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ProceduralWanderingGround
   config: {fileID: 11400000, guid: 88a7abe996134f6ca8d10d6ab4167d21, type: 2}
   useFixedSeed: 0
-  seed: -241367861
+  seed: -239284094
 --- !u!114 &1399164148
 MonoBehaviour:
   m_ObjectHideFlags: 0

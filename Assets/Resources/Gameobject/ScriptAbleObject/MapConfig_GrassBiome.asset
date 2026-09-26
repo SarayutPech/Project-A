@@ -63,11 +63,21 @@ MonoBehaviour:
     heightRange: {x: 0.8, y: 1.2}
     randomizeRotation: 0
     rotationRange: {x: 0, y: 360}
+  groundPhysicsMaterial: {fileID: 0}
+  rampPhysicsMaterial: {fileID: 0}
+  cliffPhysicsMaterial: {fileID: 0}
+  pondPhysicsMaterial: {fileID: 0}
   smoothEdges: 1
   smoothIterations: 5
   smoothThreshold: 3
   connectIslands: 1
   fillEnclosedHoles: 1
+  terraces: 1
+  terraceLevels: 5
+  terraceHeight: 1.5
+  terraceRegionSize: 30
+  terraceFlatChance: 0.3
+  cliffMaterial: {fileID: 0}
   addNoiseHoles: 1
   holeMeshResolution: 11
   holeDensity: 0.001
