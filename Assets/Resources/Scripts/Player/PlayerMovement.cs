@@ -151,6 +151,7 @@ public class PlayerMovement : MonoBehaviour
     private Vector3 _dashDir;
     private float _lastDashTime = float.NegativeInfinity;
     private bool _airDashUsed;
+    private bool _dashFromGround;
 
     private Vector3 _groundNormal = Vector3.up;
     private readonly RaycastHit[] _wallHits = new RaycastHit[8];
@@ -524,6 +525,7 @@ public class PlayerMovement : MonoBehaviour
         _dashDir = dir.normalized;
         _dashTimeLeft = dashDuration;
         _lastDashTime = Time.time;
+        _dashFromGround = IsGrounded;
         if (!IsGrounded) _airDashUsed = true;
 
         _body.useGravity = false; // พุ่งเป็นเส้นตรงไม่ตก ข้ามน้ำได้เต็มระยะ
@@ -539,8 +541,18 @@ public class PlayerMovement : MonoBehaviour
         if (_body == null) return;
         _body.useGravity = true;
 
+        if (!keepMomentum || _body.isKinematic) return;
+
         // เหลือความเร็วเท่าเดินปกติ ไม่ไถลไกลหลังพุ่ง
-        if (keepMomentum && !_body.isKinematic) _body.linearVelocity = _dashDir * moveSpeed;
+        _body.linearVelocity = _dashDir * moveSpeed;
+
+        // dash พุ่งเป็นเส้นตรงแนวราบ ผ่านพื้นลาดลง/ขั้นบันไดแล้วลอยพ้นพื้นนิดหน่อย
+        // เริ่มจากพื้น + พื้นอยู่ใต้เท้าไม่เกิน groundSnapDistance -> ดูดกลับลงพื้นเลย ไม่นับเป็นตก (ไม่เข้าท่า fall/land)
+        if (_dashFromGround && SnapToGround(out _))
+        {
+            IsGrounded = true;
+            _lastGroundedTime = Time.time;
+        }
     }
 
     // ---------- Water / Hole Blockers ----------
