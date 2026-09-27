@@ -985,15 +985,14 @@ public class ProceduralMapGenerator : MonoBehaviour
     }
 
     // พื้นลุยน้ำ (collider อย่างเดียว ไม่มี renderer) ปิดบ่อตาม sub-cell ที่เจาะไว้
-    // ขอบบ่อสูง 0 เท่าผิวพื้น แล้วลาดลงถึง waterWalkDepth ภายในระยะ waterWalkRampWidth
-    // -> เดินลงน้ำตัวค่อยๆ จม เดินขึ้นฝั่งเองได้โดยไม่ต้องมีระบบก้าวขั้น (ผนัง/ก้นหลุมจริงยังอยู่ข้างล่างเป็นแค่ภาพ)
-    private void BuildWaterWalkSurface(Transform root)
+    // ความสูงพื้นบ่อลุยน้ำที่มุม sub-cell (มุม c = มุมล่างซ้ายของ sub-cell c ใน index แบบ global)
+    // ขอบบ่อสูงเท่าผิวพื้น แล้วลาดลงถึง waterWalkDepth ภายในระยะ waterWalkRampWidth
+    // ใช้ทั้ง collider (BuildWaterWalkSurface) และก้นบ่อที่มองเห็น (BuildSubdividedGeometry) -> ภาพตรงกับที่เท้าเหยียบ เงาไม่ลอย
+    // ต้องเรียกหลัง _holeSubCells ครบแล้ว
+    private System.Func<Vector2Int, float> CreatePondFloorHeight()
     {
-        if (_holeSubCells.Count == 0) return;
-
         int res = Mathf.Max(1, holeMeshResolution);
         float subSize = stepSize / res;
-        float cellHalf = stepSize * 0.5f;
         float depth = Mathf.Min(waterWalkDepth, pitDepth * 0.95f);
 
         // ระยะ (จำนวน sub-cell) จากขอบบ่อ: sub-cell ที่ติดพื้นปกติ = 1 แล้ว BFS เข้าไปข้างใน
@@ -1021,11 +1020,6 @@ public class ProceduralMapGenerator : MonoBehaviour
             }
         }
 
-        // ความสูงต่อมุม (ใช้ vertex ร่วมกัน พื้นจะต่อเนื่องไม่มีรอยขั้นระหว่าง sub-cell)
-        var cornerIndex = new Dictionary<Vector2Int, int>();
-        var vertices = new List<Vector3>();
-        var triangles = new List<int>();
-
         // บ่อทั้งบ่ออยู่ชั้นเดียว อิงชั้นจาก sub-cell บ่อที่แตะมุมนี้ (ทุกมุมที่ถูกเรียกแตะ sub-cell บ่ออย่างน้อย 1 อัน)
         float PondBaseHeight(Vector2Int c)
         {
@@ -1038,10 +1032,8 @@ public class ProceduralMapGenerator : MonoBehaviour
             return 0f;
         }
 
-        int Corner(Vector2Int c)
+        return c =>
         {
-            if (cornerIndex.TryGetValue(c, out int index)) return index;
-
             // มุมที่แตะ sub-cell พื้นปกติ = ระดับผิวพื้นพอดี / นอกนั้นลึกตามระยะจากขอบ
             int level = int.MaxValue;
             for (int oz = -1; oz <= 0; oz++)
@@ -1054,8 +1046,30 @@ public class ProceduralMapGenerator : MonoBehaviour
                 }
                 if (level == 0) break;
             }
+            return PondBaseHeight(c) - depth * Mathf.Clamp01(level * subSize / waterWalkRampWidth);
+        };
+    }
 
-            float y = PondBaseHeight(c) - depth * Mathf.Clamp01(level * subSize / waterWalkRampWidth);
+    // พื้นล่องหนสำหรับลุยน้ำ (collider) -> เดินลงน้ำตัวค่อยๆ จม เดินขึ้นฝั่งเองได้โดยไม่ต้องมีระบบก้าวขั้น
+    private void BuildWaterWalkSurface(Transform root)
+    {
+        if (_holeSubCells.Count == 0) return;
+
+        int res = Mathf.Max(1, holeMeshResolution);
+        float subSize = stepSize / res;
+        float cellHalf = stepSize * 0.5f;
+        var floorY = CreatePondFloorHeight();
+
+        // ความสูงต่อมุม (ใช้ vertex ร่วมกัน พื้นจะต่อเนื่องไม่มีรอยขั้นระหว่าง sub-cell)
+        var cornerIndex = new Dictionary<Vector2Int, int>();
+        var vertices = new List<Vector3>();
+        var triangles = new List<int>();
+
+        int Corner(Vector2Int c)
+        {
+            if (cornerIndex.TryGetValue(c, out int index)) return index;
+
+            float y = floorY(c);
             index = vertices.Count;
             vertices.Add(new Vector3(-cellHalf + c.x * subSize, y, -cellHalf + c.y * subSize));
             cornerIndex[c] = index;
@@ -1374,6 +1388,9 @@ public class ProceduralMapGenerator : MonoBehaviour
             }
         }
 
+        // บ่อลุยน้ำได้: ก้นบ่อที่มองเห็น = พื้นที่เท้าเหยียบจริง (ลาดจากขอบ) ไม่งั้นเงาตกบนก้นบ่อลึกกว่าเท้า ดูตัวลอย
+        var pondFloorY = ponds && walkableWater ? CreatePondFloorHeight() : null;
+
         foreach (var g in subCells)
         {
             Vector3 center = SubToWorld(g);
@@ -1390,11 +1407,18 @@ public class ProceduralMapGenerator : MonoBehaviour
             // บ่ออยู่บนที่ราบชั้นเดียวเสมอ (GenerateNoiseHoleSeeds กันไว้) ความสูงทุกส่วนของบ่ออิงระดับชั้นของ cell
             float baseY = Terrace.BaseHeight(cell);
 
-            center.y = baseY + PitFloorY;
-            AddQuad(pitVertices, pitUvs, pitTriangles, center, subHalf);
-
             center.y = baseY + WaterY;
             AddQuad(waterVertices, waterUvs, waterTriangles, center, subHalf);
+
+            if (pondFloorY != null)
+            {
+                // ขอบลาดชนผิวพื้นพอดี ไม่ต้องมีผนัง
+                AddPondFloorQuad(pitVertices, pitUvs, pitTriangles, g, subSize, cellHalf, pondFloorY);
+                continue;
+            }
+
+            center.y = baseY + PitFloorY;
+            AddQuad(pitVertices, pitUvs, pitTriangles, center, subHalf);
 
             // ผนังเฉพาะด้านที่ติดพื้นปกติ (หรือขอบแผนที่)
             foreach (var d in Directions4)
@@ -1403,6 +1427,26 @@ public class ProceduralMapGenerator : MonoBehaviour
                 AddWall(pitVertices, pitUvs, pitTriangles, SubToWorld(g) + Vector3.up * baseY, d, subHalf, pitDepth);
             }
         }
+    }
+
+    // sub-quad ก้นบ่อที่ความสูงแต่ละมุมตาม floorY (ลำดับ/winding เดียวกับ AddQuad)
+    private void AddPondFloorQuad(List<Vector3> vertices, List<Vector2> uvs, List<int> triangles,
+        Vector2Int g, float subSize, float cellHalf, System.Func<Vector2Int, float> floorY)
+    {
+        int baseIndex = vertices.Count;
+        foreach (var c in new[] { g, new Vector2Int(g.x, g.y + 1), new Vector2Int(g.x + 1, g.y), new Vector2Int(g.x + 1, g.y + 1) })
+        {
+            var v = new Vector3(-cellHalf + c.x * subSize, floorY(c), -cellHalf + c.y * subSize);
+            vertices.Add(v);
+            uvs.Add(new Vector2(v.x / textureWorldSize, v.z / textureWorldSize));
+        }
+
+        triangles.Add(baseIndex + 0);
+        triangles.Add(baseIndex + 1);
+        triangles.Add(baseIndex + 2);
+        triangles.Add(baseIndex + 2);
+        triangles.Add(baseIndex + 1);
+        triangles.Add(baseIndex + 3);
     }
 
     // ผนังหลุมที่ขอบด้าน dir ของ sub-quad ในรู หันหน้าเข้าหาข้างในรู
