@@ -1,6 +1,7 @@
 using UnityEngine;
 
-// ถ้าในฉากยังไม่มี player (PlayerMovement) จะ spawn ให้ที่จุด Start ของแผนที่
+// ถ้ายังไม่มี player (PlayerMovement) จะ spawn ให้ที่จุด Start ของแผนที่ (หรือตำแหน่ง spawner ถ้า scene ไม่มีแผนที่)
+// ถ้ามี player ข้ามมาจาก scene ก่อน (persistAcrossScenes) จะย้ายตัวเดิมมาวางแทนการสร้างใหม่
 // รันหลัง ProceduralMapGenerator (-1000) เพื่อให้รู้จุด Start แล้ว และก่อน script ทั่วไป
 // เพื่อให้กล้อง/script อื่นเจอ PlayerMovement.Instance ตั้งแต่ Start
 [DefaultExecutionOrder(-900)]
@@ -18,13 +19,20 @@ public class PlayerSpawner : MonoBehaviour
 
     public PlayerMovement EnsurePlayer()
     {
-        if (PlayerMovement.Instance != null) return PlayerMovement.Instance;
+        var gen = generator != null ? generator : ProceduralMapGenerator.Instance;
+        // ตอนเปลี่ยน scene, scene เก่ายังไม่ถูก unload ตอน Awake ของ scene ใหม่ -> Instance อาจเป็นของแผนที่เก่า
+        if (gen != null && gen.gameObject.scene != gameObject.scene) gen = null;
 
         // player ที่วางไว้ในฉากอาจยังไม่ได้ Awake (Instance ยังว่าง) จึงต้องหาในฉากด้วย
-        var existing = FindFirstObjectByType<PlayerMovement>();
-        if (existing != null) return existing;
+        var existing = PlayerMovement.Instance != null ? PlayerMovement.Instance : FindAnyObjectByType<PlayerMovement>();
+        if (existing != null)
+        {
+            // ตัวที่ข้ามมาจาก scene ก่อน -> วางเท้าที่จุดเกิดของ scene นี้
+            // (scene ที่มีแผนที่ PlayerMovement วางที่จุด Start เองตอนผูก scene ใหม่)
+            if (existing.gameObject.scene != gameObject.scene && gen == null) existing.Teleport(transform.position);
+            return existing;
+        }
 
-        var gen = generator != null ? generator : ProceduralMapGenerator.Instance;
         Vector3 spawnPos = gen != null ? gen.StartPosition : transform.position;
 
         GameObject playerObj = playerPrefab != null

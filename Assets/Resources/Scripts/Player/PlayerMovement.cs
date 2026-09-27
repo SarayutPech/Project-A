@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 // เดินด้วย Rigidbody (gravity จาก physics) ทิศตามมุมกล้อง (กด W = เดินขึ้นจอ เหมาะกับกล้อง isometric)
 // ปุ่มเริ่มต้น Keyboard: WASD / ลูกศร, Space = กระโดด, Ctrl = แตะ dash / กดค้าง วิ่ง
@@ -88,6 +89,10 @@ public class PlayerMovement : MonoBehaviour
     [Tooltip("ซ่อน renderer ของ player จนแผนที่ขึ้นครบ")]
     public bool hideUntilMapBuilt = true;
 
+    [Header("Scene")]
+    [Tooltip("player ตัวเดียวอยู่ข้าม scene (DontDestroyOnLoad) เปลี่ยน scene แล้ว PlayerSpawner ของ scene ใหม่จะย้ายตัวนี้ไปวางแทนการสร้างใหม่")]
+    public bool persistAcrossScenes = true;
+
     [Header("Fall Safety")]
     [Tooltip("ถ้าตกต่ำกว่านี้ (เช่นหลุดขอบ/ตกรู) จะกลับไปยืนจุดปลอดภัยล่าสุด")]
     public float respawnBelowY = -20f;
@@ -157,6 +162,7 @@ public class PlayerMovement : MonoBehaviour
 
     private ProceduralMapGenerator _subscribedGenerator;
     private MapBuildAnimator _subscribedAnimator;
+    private Scene _boundScene; // scene ที่ผูก generator/animator แล้ว (กันผูกซ้ำจาก Start + sceneLoaded)
 
     private ProceduralMapGenerator Generator => generator != null ? generator : ProceduralMapGenerator.Instance;
 
@@ -170,10 +176,12 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
         Instance = this;
+        if (persistAcrossScenes && transform.parent == null) DontDestroyOnLoad(gameObject);
 
         _body = GetComponent<Rigidbody>();
         _capsule = GetComponent<CapsuleCollider>();
-        _renderers = GetComponentsInChildren<Renderer>(true);
+        // เก็บเฉพาะ renderer ที่เปิดอยู่ตั้งแต่แรก ตอนซ่อน/แสดงจะได้ไม่ไปเปิดตัวที่ตั้งใจปิดไว้ (เช่น capsule ของ root)
+        _renderers = System.Array.FindAll(GetComponentsInChildren<Renderer>(true), r => r.enabled);
         SetupPhysics();
         CanMove = _canMove;
         WarnExtraColliders();
@@ -215,33 +223,76 @@ public class PlayerMovement : MonoBehaviour
 
     private void OnEnable()
     {
-        _subscribedGenerator = Generator;
-        if (_subscribedGenerator != null) _subscribedGenerator.MapGenerated += OnMapGenerated;
+        SceneManager.sceneLoaded += OnSceneLoaded;
+        SubscribeGenerator();
     }
 
     private void OnDisable()
     {
-        if (_subscribedGenerator != null) _subscribedGenerator.MapGenerated -= OnMapGenerated;
-        _subscribedGenerator = null;
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        UnsubscribeGenerator();
     }
 
-    private void Start()
+    private void Start() => BindActiveScene();
+
+    private void OnDestroy()
     {
-        if (buildAnimator == null) buildAnimator = FindFirstObjectByType<MapBuildAnimator>();
+        if (Instance == this) Instance = null;
+        UnsubscribeAnimator();
+    }
+
+    // player อยู่ข้าม scene -> ทุกครั้งที่ scene ใหม่โหลดเสร็จ (Awake ของ scene ใหม่ทำงานแล้ว) ต้องผูกกับของใน scene นั้นใหม่
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (mode == LoadSceneMode.Single) BindActiveScene();
+    }
+
+    // ผูก generator / build animator ของ scene ปัจจุบัน แล้ววาง player (scene แรก + ทุกครั้งที่ย้าย scene)
+    private void BindActiveScene()
+    {
+        Scene active = SceneManager.GetActiveScene();
+        if (active == _boundScene) return;
+        _boundScene = active;
+
+        // ของ scene เก่าถูกทำลายไปแล้ว (อ้างอิงเดิมกลายเป็น null) -> หาของ scene นี้ใหม่
+        UnsubscribeGenerator();
+        SubscribeGenerator();
+        UnsubscribeAnimator();
+        if (buildAnimator == null) buildAnimator = FindAnyObjectByType<MapBuildAnimator>();
         if (buildAnimator != null)
         {
             _subscribedAnimator = buildAnimator;
             _subscribedAnimator.onBuildFinished.AddListener(OnMapBuilt);
         }
 
-        // generator สร้างแผนที่เสร็จตั้งแต่ Awake แล้ว
-        if (Generator != null && ProceduralMapGenerator.GeneratedRoot != null) HandleMapGenerated(true);
+        _hasSafePosition = false;
+        // SceneTransition ล็อกไว้ตอนออกจาก scene เก่า -> ปลดก่อน ถ้า map ต้องรอ build จะล็อกใหม่ใน HandleMapGenerated
+        CanMove = true;
+        SetVisible(true);
+
+        // generator สร้างแผนที่เสร็จตั้งแต่ Awake แล้ว / scene ที่ไม่มี map (hideout) PlayerSpawner วางตำแหน่งให้แล้ว
+        // (generator ต้องอยู่ scene นี้ ไม่ใช่ของแผนที่เก่าที่ยังรอ unload)
+        var gen = Generator;
+        if (gen != null && gen.gameObject.scene == active && ProceduralMapGenerator.GeneratedRoot != null) HandleMapGenerated(true);
+        else RefreshHoleBlockers();
     }
 
-    private void OnDestroy()
+    private void SubscribeGenerator()
     {
-        if (Instance == this) Instance = null;
+        _subscribedGenerator = Generator;
+        if (_subscribedGenerator != null) _subscribedGenerator.MapGenerated += OnMapGenerated;
+    }
+
+    private void UnsubscribeGenerator()
+    {
+        if (_subscribedGenerator != null) _subscribedGenerator.MapGenerated -= OnMapGenerated;
+        _subscribedGenerator = null;
+    }
+
+    private void UnsubscribeAnimator()
+    {
         if (_subscribedAnimator != null) _subscribedAnimator.onBuildFinished.RemoveListener(OnMapBuilt);
+        _subscribedAnimator = null;
     }
 
     private void OnMapGenerated() => HandleMapGenerated(false);

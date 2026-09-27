@@ -37,4 +37,7 @@ ARPG แนว Path of Exile (hideout + procedural map) — Unity 6000.6, URP, I
 - `Assets/Resources/Scripts/ProceduralMap/` — `ProceduralMapGenerator` (ไฟล์ `ProceduralWanderingGround.cs`) ค่าตั้งอยู่ใน `ProceduralMapConfig` (ScriptableObject ต่อ variant)
 - `Assets/Resources/Scripts/SceneFlow/` — `SceneTransition` (โหลด scene + fade), `ScenePortal` (คลิกในระยะเพื่อวาร์ป)
 - `Assets/Resources/Scripts/Player/`, `Camera/` — ยังเป็นแบบ single-player (ดูกฎข้อ 3–4)
+  - local player เป็นตัวเดียวอยู่ข้าม scene (`PlayerMovement.persistAcrossScenes` → DontDestroyOnLoad) `PlayerSpawner` ของ scene ใหม่ย้ายตัวเดิมมาวาง ไม่สร้างใหม่
+  - ของที่ player ถือข้าม scene ต้องผูกกับ scene ใหม่ใน `sceneLoaded` และระวังของ scene เก่าที่ยังไม่ unload ตอน Awake (เช่น `ProceduralMapGenerator.Instance`)
+  - `PlayerAnimator` / `DashAfterimage` = presentation อย่างเดียว อ่านสถานะจาก `PlayerMovement`
 - Scenes: `Hideout`, `CreatedMap` (ไฟล์ scene เก็บผ่าน Git LFS)
