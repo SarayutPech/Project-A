@@ -115,6 +115,12 @@ public class PlayerMovement : MonoBehaviour
 
     public bool IsGrounded { get; private set; }
     public bool IsDashing => _dashTimeLeft > 0f;
+    // อยู่ในโหมดวิ่ง (กด sprint ค้าง) ใช้เลือกท่าเดิน/วิ่ง
+    public bool Sprinting => _sprint;
+    // นับครั้งที่กระโดดจริง (เพิ่มทีละ 1) ให้ฝั่งภาพเทียบค่าเก่าเพื่อรู้ว่าเพิ่งกระโดด / ภายหลัง sync ผ่านเน็ตเป็นตัวเลขตัวเดียวได้
+    public int JumpCount { get; private set; }
+    // ครั้งล่าสุดกระโดดจากพื้น (false = กระโดดกลางอากาศ)
+    public bool LastJumpFromGround { get; private set; }
 
     // Singleton: player มีได้ตัวเดียวในฉาก ตัวที่เกินมาจะถูกลบทิ้ง
     public static PlayerMovement Instance { get; private set; }
@@ -384,6 +390,8 @@ public class PlayerMovement : MonoBehaviour
             // v = sqrt(2gh) ได้ความสูง jumpHeight พอดีตาม gravity ปัจจุบัน (ครั้งกลางอากาศตั้งทับความเร็วตก)
             velocity.y = Mathf.Sqrt(2f * Mathf.Abs(Physics.gravity.y) * (groundJump ? jumpHeight : airJumpHeight));
             _jumpsUsed++;
+            JumpCount++;
+            LastJumpFromGround = groundJump;
             _jumpedSinceGrounded = true;
             _lastJumpPressedTime = float.NegativeInfinity;
             IsGrounded = false;

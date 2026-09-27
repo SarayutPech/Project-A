@@ -106,7 +106,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cd078cb9f99841c40bc335f72906bf03, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
-  moveSpeed: 10
+  moveSpeed: 5
   sprintMultiplier: 1.6
   groundAcceleration: 60
   airAcceleration: 20
@@ -140,6 +140,7 @@ MonoBehaviour:
   spawnHeightOffset: 0.05
   lockUntilMapBuilt: 1
   hideUntilMapBuilt: 1
+  persistAcrossScenes: 1
   respawnBelowY: -20
   safeEdgeMargin: 0.5
 --- !u!54 &1218490976296656953
@@ -188,10 +189,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.5
-  m_Height: 1
+  m_Radius: 0.3
+  m_Height: 2.1
   m_Direction: 1
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Center: {x: 0, y: 0.74999994, z: 0}
 --- !u!1001 &580939129535964330
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -287,8 +288,57 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 597760623936607062}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7895768076592646724}
   m_SourcePrefab: {fileID: 100100000, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+--- !u!1 &346355914742209019 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+  m_PrefabInstance: {fileID: 580939129535964330}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &597760623936607062
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 346355914742209019}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac2d63136f917264d8363970eff70417, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerAnimator
+  movement: {fileID: 7703290480706648453}
+  jumpImpulseThreshold: 2
+  airborneGrace: 0.1
+  gaitDampTime: 0.12
+  walkClipSpeed: 2.3
+  runClipSpeed: 6.6
+  locomotionPlaybackRange: {x: 0.5, y: 2.5}
+--- !u!114 &7895768076592646724
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 346355914742209019}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d99a04fcff1a8e14fb6e8d37b39f4fb1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DashAfterimage
+  movement: {fileID: 7703290480706648453}
+  material: {fileID: 2100000, guid: 1504c0dceeb86e14d87cdf3049a9e84a, type: 2}
+  color: {r: 1, g: 0.35, b: 0.75, a: 1}
+  spawnInterval: 0.035
+  lifetime: 0.25
+  startAlpha: 0.8
+  trailAfterDash: 0.05
 --- !u!4 &1118388533206238017 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
