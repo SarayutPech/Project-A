@@ -241,13 +241,19 @@ public class OcclusionOutlineController : MonoBehaviour
         return false;
     }
 
+    // ชนก่อนถึงจุดเช็ค = บัง / ไม่หักระยะท้ายทิ้ง (เดิมหัก checkRadius ซึ่งเท่ากับรัศมีตัว -> ยืนชิดกำแพง/มุมแล้วจุดชนตกในช่วงที่หักทิ้ง outline หาย)
+    // กันพื้นที่ยืนอยู่ (เช่นทางลาดขึ้นหน้าตัว) ด้วยความสูงของจุดชนแทน: ต้องสูงกว่าเท้าเกินครึ่งของ terrainMinRise
     private bool CollidersBlockAnySample(Collider[] colliders)
     {
+        float minHitY = _targetFootY + terrainMinRise * 0.5f;
         foreach (var p in _samplePoints)
         {
             if (!TryGetSightRay(p, out Ray ray, out float distance)) continue;
             foreach (var col in colliders)
-                if (col != null && col.enabled && col.Raycast(ray, out _, distance - checkRadius)) return true;
+            {
+                if (col == null || !col.enabled) continue;
+                if (col.Raycast(ray, out RaycastHit hit, distance) && hit.point.y > minHitY) return true;
+            }
         }
         return false;
     }
