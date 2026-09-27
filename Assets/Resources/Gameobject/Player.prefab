@@ -201,6 +201,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 6206535814838632362}
     m_Modifications:
+    - target: {fileID: -9165797768001435688, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: d70bd565fa0edff4780121acd373afea, type: 2}
     - target: {fileID: -8679921383154817045, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.25
@@ -253,6 +257,26 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -8016412588606473749, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: d70bd565fa0edff4780121acd373afea, type: 2}
+    - target: {fileID: -6002508473797582251, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: d70bd565fa0edff4780121acd373afea, type: 2}
+    - target: {fileID: -4202798675411607032, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: d70bd565fa0edff4780121acd373afea, type: 2}
+    - target: {fileID: -1526964690268444965, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: d70bd565fa0edff4780121acd373afea, type: 2}
+    - target: {fileID: -809828480950454423, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: d70bd565fa0edff4780121acd373afea, type: 2}
     - target: {fileID: 919132149155446097, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
       propertyPath: m_Name
       value: Visual
@@ -273,6 +297,10 @@ PrefabInstance:
       propertyPath: m_LocalRotation.z
       value: 0.025850633
       objectReference: {fileID: 0}
+    - target: {fileID: 5742066667910392887, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: d70bd565fa0edff4780121acd373afea, type: 2}
     - target: {fileID: 5866666021909216657, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
       propertyPath: m_Controller
       value: 
@@ -285,6 +313,14 @@ PrefabInstance:
       propertyPath: m_ApplyRootMotion
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 7603786706384944740, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: d70bd565fa0edff4780121acd373afea, type: 2}
+    - target: {fileID: 8417361359673230750, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: d70bd565fa0edff4780121acd373afea, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -314,7 +350,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerAnimator
   movement: {fileID: 7703290480706648453}
-  jumpImpulseThreshold: 2
   airborneGrace: 0.1
   gaitDampTime: 0.12
   walkClipSpeed: 2.3
@@ -334,9 +369,39 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DashAfterimage
   movement: {fileID: 7703290480706648453}
   material: {fileID: 2100000, guid: 1504c0dceeb86e14d87cdf3049a9e84a, type: 2}
-  color: {r: 1, g: 0.35, b: 0.75, a: 1}
+  color: {r: 1, g: 1, b: 1, a: 1}
+  colorOverLifetime:
+    serializedVersion: 2
+    key0: {r: 1, g: 1, b: 1, a: 1}
+    key1: {r: 1, g: 1, b: 1, a: 0}
+    key2: {r: 0, g: 0, b: 0, a: 0}
+    key3: {r: 0, g: 0, b: 0, a: 0}
+    key4: {r: 0, g: 0, b: 0, a: 0}
+    key5: {r: 0, g: 0, b: 0, a: 0}
+    key6: {r: 0, g: 0, b: 0, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 65535
+    ctime2: 0
+    ctime3: 0
+    ctime4: 0
+    ctime5: 0
+    ctime6: 0
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 2
+    m_NumAlphaKeys: 2
   spawnInterval: 0.035
-  lifetime: 0.25
+  lifetime: 0.75
   startAlpha: 0.8
   trailAfterDash: 0.05
 --- !u!4 &1118388533206238017 stripped

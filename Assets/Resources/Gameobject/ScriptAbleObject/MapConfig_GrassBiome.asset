@@ -15,12 +15,12 @@ MonoBehaviour:
   stepSize: 3
   fillRadius: 3
   edgeFillChance: 0.78
-  groundMaterial: {fileID: 2100000, guid: 896115c474552114d95bf55bc5628558, type: 2}
+  groundMaterial: {fileID: 2100000, guid: dd51ddb5881a6d448b33c9634338627c, type: 2}
   textureWorldSize: 5
   addCollider: 1
   walkSteps: 500
   moveTransformToEnd: 1
-  showStartEndMarkers: 1
+  showStartEndMarkers: 0
   startMarkerPrefab: {fileID: 0}
   endMarkerPrefab: {fileID: 0}
   markerSize: 1.5
@@ -78,6 +78,7 @@ MonoBehaviour:
   terraceRegionSize: 30
   terraceFlatChance: 0.3
   cliffMaterial: {fileID: 0}
+  terrainChunkSize: 6
   addNoiseHoles: 1
   holeMeshResolution: 11
   holeDensity: 0.001
