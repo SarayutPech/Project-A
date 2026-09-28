@@ -6,7 +6,7 @@ using UnityEngine;
 // กระโดดข้ามพื้นต่างระดับ: JumpTo(จุดลงพื้น) คำนวณวิถีโค้ง (projectile) ให้ยอดสูงกว่าจุดที่สูงกว่า jumpClearance
 // แล้วตกลงตรงจุดหมายพอดี ระหว่างลอยไม่บังคับทิศ (ให้ลงตรงที่คำนวณไว้)
 [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider))]
-public class EnemyMotor : MonoBehaviour, ICharacterLocomotion
+public class EnemyMotor : MonoBehaviour, ICharacterLocomotion, ISkillMover
 {
     [Header("Movement")]
     [Min(0f)] public float walkSpeed = 2.2f;
@@ -177,6 +177,16 @@ public class EnemyMotor : MonoBehaviour, ICharacterLocomotion
         _body.position = pos;
         if (!_body.isKinematic) _body.linearVelocity = Vector3.zero;
         _lastGroundedPos = pos;
+    }
+
+    // สกิลวาร์ป: วางเท้าแล้วหันหาเป้า
+    public void SkillTeleport(Vector3 footPosition, Vector3 facing)
+    {
+        if (_frozen || _dead) return;
+        Teleport(footPosition);
+        facing.y = 0f;
+        if (facing.sqrMagnitude > 0.0001f) _body.rotation = Quaternion.LookRotation(facing);
+        IsJumping = false;
     }
 
     // กระโดดจากตรงนี้ไปลงที่ landing (ตำแหน่งเท้า) คืน false ถ้ายังไม่ได้ยืนบนพื้น / สูงเกินความสามารถ

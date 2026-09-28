@@ -19,8 +19,19 @@ MonoBehaviour:
   icon: {fileID: 0}
   maxLevel: 20
   animation: {fileID: -203655887218126122, guid: 1236c514161d20748b02a39411a6ce5d, type: 3}
+  animationVariants: []
+  blendAnimation: {fileID: 0}
+  blendWeightRange: {x: 0.25, y: 0.5}
+  mirror: 0
+  upperBodyOnly: 0
   duration: 1.2
+  attackSpeed: 1
   cooldown: 0.1
+  areaOfEffect: 1
+  teleportToTarget: 0
+  teleportRange: 12
+  teleportLandingGap: 0.3
+  avoidSameTarget: 1
   baseDamage: 10
   damagePerLevel: 2
   hitboxes:

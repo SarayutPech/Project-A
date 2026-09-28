@@ -54,6 +54,13 @@ public class MeleeAttack : MonoBehaviour
     public float CurrentDuration { get; private set; }
     // สกิลของท่าที่กำลังเล่น / เล่นล่าสุด (ฝั่งภาพใช้เลือก animation)
     public ResolvedSkill ActiveSkill => _active;
+    // ท่าที่สุ่มได้ของครั้งนี้ + กลับข้างไหม (ตัดสินฝั่ง simulation -> ภายหลัง sync เป็นเลข/บูลตัวเดียว ทุก client เห็นท่าเดียวกัน)
+    public int AnimationVariant { get; private set; }
+    public bool Mirrored { get; private set; }
+    // น้ำหนักท่าผสม (blendAnimation) ของครั้งนี้
+    public float BlendWeight { get; private set; }
+    // นับครั้งที่เลือกท่าใหม่ (เริ่มท่า + ทุกรอบที่ channel วนแล้วสุ่มใหม่) ฝั่งภาพเทียบค่าเก่าเพื่อรู้ว่าต้องเปลี่ยนท่า
+    public int PresentationCount { get; private set; }
     public float MoveSpeedMultiplier => _active != null ? _active.MoveSpeedMultiplier : Skill != null ? Skill.MoveSpeedMultiplier : 1f;
     public bool Ready => IsReady(Skill);
 
@@ -77,6 +84,10 @@ public class MeleeAttack : MonoBehaviour
     public event System.Action<MeleeAttack, Health> Hit;
     // เปลี่ยนสกิล/ค่าสกิล (ฝั่งภาพใช้สลับท่า)
     public event System.Action<MeleeAttack> SkillChanged;
+    // สกิลกำลังวาร์ป (from, to = ตำแหน่งเท้า) เรียกก่อนย้ายตัว -> ฝั่งภาพทิ้งเงา/effect ที่จุดเดิมได้
+    public event System.Action<MeleeAttack, Vector3, Vector3> Teleporting;
+    // เป้าล่าสุดที่วาร์ปไปหา
+    public Health TeleportTarget { get; private set; }
 
     private ResolvedSkill _skill;
     private ResolvedSkill _active; // สกิลของท่าที่กำลังเล่น (เปลี่ยน gem กลางท่าไม่กระทบท่าที่เล่นอยู่)
@@ -93,13 +104,24 @@ public class MeleeAttack : MonoBehaviour
     // เวลา simulation (สะสม fixedDeltaTime) ใช้นับ cooldown แบบ tick ไม่พึ่ง Time.time
     private float _simTime;
     private readonly Dictionary<ActiveSkillGem, float> _cooldownUntil = new Dictionary<ActiveSkillGem, float>();
+    // สุ่มท่า/ข้าง (ไม่แตะ UnityEngine.Random) + จำท่าล่าสุดของแต่ละสกิลไว้กันซ้ำ / สลับข้าง
+    private readonly System.Random _rng = new System.Random();
+    private readonly Dictionary<ActiveSkillGem, (int variant, bool mirrored)> _lastPick = new Dictionary<ActiveSkillGem, (int, bool)>();
     private int _nextHitbox;
     private readonly List<AttackHitbox> _ordered = new List<AttackHitbox>();
     private readonly Collider[] _overlap = new Collider[32];
     private readonly HashSet<Health> _hitThisStrike = new HashSet<Health>();
     private float _strikeTime = -1f;
 
-    private void Awake() => _owner = GetComponent<Health>();
+    private ISkillMover _mover;
+    // จุดที่ผู้เล่นเล็ง (เคอร์เซอร์บนพื้น) ใช้เลือกเป้าวาร์ป / ไม่มี = หน้าตัว
+    private Vector3? _aimPoint;
+
+    private void Awake()
+    {
+        _owner = GetComponent<Health>();
+        _mover = GetComponent<ISkillMover>();
+    }
 
     // ---------- Skill setup (server) ----------
 
@@ -134,13 +156,28 @@ public class MeleeAttack : MonoBehaviour
     public bool TryAttack(Vector3 aimDirection, bool held = false) => TryAttack(Skill, aimDirection, held);
 
     // ใช้สกิลที่ระบุ (player: สกิลของ slot ที่กด) held = กดค้างอยู่ตอนเริ่ม (ท่า channel จะวนจนกว่า SetHeld(false))
-    public bool TryAttack(ResolvedSkill skill, Vector3 aimDirection, bool held = false)
+    // aimPoint = จุดที่เล็ง (ใช้เลือกเป้าของสกิลวาร์ป) ผู้เรียกต้อง validate ว่าเป็นตัวเลขจริง
+    public bool TryAttack(ResolvedSkill skill, Vector3 aimDirection, bool held = false, Vector3? aimPoint = null)
     {
         if (!IsReady(skill)) return false;
-        _active = skill;
 
         aimDirection.y = 0f;
-        AimDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : FlatForward();
+        aimDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : FlatForward();
+        _aimPoint = aimPoint;
+
+        // สกิลวาร์ป: ต้องมีเป้าในระยะ ไม่งั้นใช้ไม่ได้ (เช็คก่อนเริ่มท่า)
+        Health target = null;
+        if (skill.TeleportToTarget)
+        {
+            if (_mover == null) return false;
+            target = FindTeleportTarget(skill, AimPointOr(aimDirection, skill));
+            if (target == null) return false;
+        }
+
+        _active = skill;
+        PickPresentation(skill);
+        AimDirection = aimDirection;
+        if (target != null) TeleportNextTo(target);
         CurrentDuration = _active.ScaledDuration;
         IsAttacking = true;
         _t = 0f;
@@ -162,6 +199,33 @@ public class MeleeAttack : MonoBehaviour
         return true;
     }
 
+    // สุ่มท่า (ไม่ซ้ำท่าเดิมติดกันถ้ามีหลายท่า) + กลับข้างตาม Mirror ของสกิล
+    private void PickPresentation(ResolvedSkill skill)
+    {
+        bool hasLast = _lastPick.TryGetValue(skill.Gem, out var last);
+        int count = skill.AnimationCount;
+        int variant = 0;
+        if (count > 1)
+        {
+            variant = _rng.Next(hasLast ? count - 1 : count);
+            if (hasLast && variant >= last.variant) variant++; // ข้ามท่าล่าสุด
+        }
+
+        bool mirrored = skill.Mirror switch
+        {
+            SkillMirrorMode.Alternate => hasLast ? !last.mirrored : false,
+            SkillMirrorMode.Random => _rng.Next(2) == 1,
+            _ => false,
+        };
+
+        AnimationVariant = variant;
+        Mirrored = mirrored;
+        Vector2 range = skill.BlendWeightRange;
+        BlendWeight = skill.BlendAnimation != null ? Mathf.Clamp01(Mathf.Lerp(range.x, range.y, (float)_rng.NextDouble())) : 0f;
+        _lastPick[skill.Gem] = (variant, mirrored);
+        PresentationCount++;
+    }
+
     private static int IndexOf(IReadOnlyList<AttackHitbox> list, AttackHitbox item)
     {
         for (int i = 0; i < list.Count; i++) if (list[i] == item) return i;
@@ -174,12 +238,97 @@ public class MeleeAttack : MonoBehaviour
         if (IsAttacking) _held = held;
     }
 
-    // เปลี่ยนทิศตีระหว่าง channel (เช่นลากเมาส์ขณะหมุน) มีผลกับ hitbox จังหวะถัดไป
-    public void SetAim(Vector3 aimDirection)
+    // เปลี่ยนทิศตีระหว่าง channel (เช่นลากเมาส์ขณะหมุน) มีผลกับ hitbox จังหวะถัดไป / aimPoint ใช้เลือกเป้าวาร์ปรอบถัดไป
+    public void SetAim(Vector3 aimDirection, Vector3? aimPoint = null)
     {
         aimDirection.y = 0f;
-        if (IsChanneling && aimDirection.sqrMagnitude > 0.0001f) AimDirection = aimDirection.normalized;
+        if (!IsChanneling) return;
+        if (aimPoint.HasValue) _aimPoint = aimPoint;
+        // สกิลวาร์ปหันหาเป้าที่วาร์ปไปแล้ว ไม่หันตามเมาส์
+        if (_active.TeleportToTarget) return;
+        if (aimDirection.sqrMagnitude > 0.0001f) AimDirection = aimDirection.normalized;
     }
+
+    // ---------- Teleport (Flicker Strike) ----------
+
+    private Vector3 AimPointOr(Vector3 aimDirection, ResolvedSkill skill) =>
+        _aimPoint ?? transform.position + aimDirection * (skill.TeleportRange * 0.5f);
+
+    // เป้าวาร์ป: ศัตรูที่ยังไม่ตายในระยะจากตัว
+    // Avoid Same Target: เลือกตัวที่วาร์ปไปหาครั้งล่าสุดนานที่สุดก่อน (ไม่เคย = ก่อนสุด) -> กดค้างแล้ววนไปทั่วทั้งกลุ่ม
+    // เสมอกัน / ปิด avoid = ตัวที่ใกล้จุดเล็งที่สุด
+    // ตัดสินฝั่ง server เอง จุดเล็งจาก client เป็นแค่ตัวช่วยเลือก ระยะจำกัดด้วยค่าของ gem (กฎข้อ 8)
+    private Health FindTeleportTarget(ResolvedSkill skill, Vector3 aimPoint)
+    {
+        Health best = null;
+        float bestLast = float.PositiveInfinity, bestDist = float.PositiveInfinity;
+        float range = skill.TeleportRange * Scale;
+        Vector3 origin = transform.position;
+
+        foreach (var h in Health.All)
+        {
+            if (h == null || h == _owner || h.IsDead || !h.isActiveAndEnabled) continue;
+            if (_owner != null && h.team == _owner.team) continue;
+            Vector3 p = h.transform.position;
+            if (FlatDistance(origin, p) > range || Mathf.Abs(p.y - origin.y) > range) continue;
+
+            float last = skill.AvoidSameTarget && _flickedAt.TryGetValue(h, out float at) ? at : float.NegativeInfinity;
+            float dist = FlatDistance(aimPoint, p);
+            if (last < bestLast || (last == bestLast && dist < bestDist))
+            {
+                bestLast = last;
+                bestDist = dist;
+                best = h;
+            }
+        }
+        return best;
+    }
+
+    // เวลา (sim) ที่วาร์ปไปหาแต่ละตัวครั้งล่าสุด
+    private readonly Dictionary<Health, float> _flickedAt = new Dictionary<Health, float>();
+    private readonly List<Health> _staleFlicks = new List<Health>();
+
+    private void RememberFlick(Health target)
+    {
+        _flickedAt[target] = _simTime;
+        if (_flickedAt.Count < 64) return;
+        // ล้างตัวที่ตาย/หายไปแล้ว กัน dictionary โตไม่หยุด
+        _staleFlicks.Clear();
+        foreach (var kv in _flickedAt) if (kv.Key == null || kv.Key.IsDead) _staleFlicks.Add(kv.Key);
+        foreach (var h in _staleFlicks) _flickedAt.Remove(h);
+    }
+
+    // วาร์ปไปยืนข้างเป้า (ฝั่งที่หันเข้าหาจากจุดเดิม) ระดับเท้าเดียวกับเป้า แล้วหันหาเป้า
+    private void TeleportNextTo(Health target)
+    {
+        Vector3 from = transform.position;
+        Vector3 to = target.transform.position;
+        Vector3 dir = to - from;
+        dir.y = 0f;
+        dir = dir.sqrMagnitude > 0.0001f ? dir.normalized : FlatForward();
+
+        float gap = RadiusOf(target) + RadiusOf(_owner) + _active.TeleportLandingGap;
+        Vector3 land = to - dir * gap;
+        var targetCol = target.GetComponent<Collider>();
+        land.y = targetCol != null && targetCol.enabled ? targetCol.bounds.min.y : to.y;
+
+        Teleporting?.Invoke(this, from, land);
+        _mover.SkillTeleport(land, dir);
+        AimDirection = dir;
+        TeleportTarget = target;
+        RememberFlick(target);
+    }
+
+    private static float RadiusOf(Health h)
+    {
+        if (h == null) return 0.5f;
+        var cap = h.GetComponent<CapsuleCollider>();
+        if (cap == null) return 0.5f;
+        Vector3 s = h.transform.lossyScale;
+        return cap.radius * Mathf.Max(Mathf.Abs(s.x), Mathf.Abs(s.z));
+    }
+
+    private static float FlatDistance(Vector3 a, Vector3 b) => new Vector2(a.x - b.x, a.z - b.z).magnitude;
 
     // ตำแหน่งในท่าล่วงหน้า ahead วินาที (ฝั่งภาพใช้เติมช่วงระหว่าง physics tick ให้ animation ลื่น ไม่กระตุกตาม 50Hz)
     public float PredictNormalizedTime(float ahead)
@@ -221,6 +370,16 @@ public class MeleeAttack : MonoBehaviour
             _nextHitbox = FirstHitboxAtOrAfter(_active.LoopStart);
             _strikeTime = -1f;
             LoopCount++;
+            // มีหลายท่า/กลับข้างได้ -> รอบใหม่สุ่มท่าใหม่ (กดค้างแล้วไม่ออกท่าเดิมซ้ำ)
+            if (_active.HasPresentationVariety) PickPresentation(_active);
+
+            // สกิลวาร์ป: ทุกรอบวาร์ปไปตัวถัดไป ไม่มีเป้าเหลือ = เลิกวน เล่นท่าจบ
+            if (_active.TeleportToTarget)
+            {
+                Health next = _mover != null ? FindTeleportTarget(_active, AimPointOr(AimDirection, _active)) : null;
+                if (next != null) TeleportNextTo(next);
+                else _held = false;
+            }
         }
 
         _t = Mathf.Min(t, 1f);
@@ -248,26 +407,83 @@ public class MeleeAttack : MonoBehaviour
 
     private float Scale => Mathf.Max(transform.lossyScale.x, transform.lossyScale.z);
 
-    private Vector3 HitCenter(AttackHitbox h, Vector3 aim, float radiusMul)
+    // ---------- Shadow Clones ----------
+
+    // จำนวนร่างเงาที่ตีอยู่ตอนนี้ (ฝั่งภาพอ่านค่านี้ไปแสดง -> ภายหลัง sync ผ่านเน็ตได้เพราะคำนวณจาก state ที่ sync อยู่แล้ว)
+    public int ActiveCloneCount
+    {
+        get
+        {
+            if (!IsAttacking || _active == null || _active.ShadowCloneCount <= 0) return 0;
+            if (_active.ShadowClonesOnlyWhileHeld && !IsChanneling) return 0;
+            return _active.ShadowCloneCount;
+        }
+    }
+
+    // ตำแหน่งเท้าของร่างที่ index: คู่ซ้าย/ขวาเยื้องจากทิศที่ตี คู่ถัดไปกางออกกว้างขึ้น
+    // ใช้ทั้ง hitbox ของร่าง (server) และตำแหน่งภาพของร่าง (client) -> ตรงกันเสมอ
+    public Vector3 GetClonePosition(int index)
+    {
+        if (_active == null) return transform.position;
+        int pair = index / 2;
+        float side = index % 2 == 0 ? 1f : -1f;
+        float angle = side * Mathf.Min(170f, _active.ShadowCloneAngle * (1f + pair * 0.7f));
+        Vector3 dir = Quaternion.Euler(0f, angle, 0f) * AimDirection;
+        float dist = _active.ShadowCloneDistance * (1f + pair * 0.25f) * Scale;
+        return transform.position + dir * dist;
+    }
+
+    // ร่างที่ index ต่อยข้างตรงข้ามกับร่างก่อนหน้า (ซ้าย/ขวาสลับกันรัวๆ)
+    public bool IsCloneMirrored(int index) => Mirrored ^ (index % 2 == 0);
+
+    // ทิศที่ร่างหัน/ต่อย: เข้าหาจุดรวมหน้าตัวเรา (ห่างเท่าระยะร่าง) -> ทุกร่างรุมต่อยเป้าเดียวกับเรา
+    public Vector3 GetCloneAim(int index)
+    {
+        if (_active == null) return AimDirection;
+        Vector3 focus = transform.position + AimDirection * (_active.ShadowCloneDistance * Scale);
+        Vector3 dir = focus - GetClonePosition(index);
+        dir.y = 0f;
+        return dir.sqrMagnitude > 0.0001f ? dir.normalized : AimDirection;
+    }
+
+    private readonly List<HashSet<Health>> _cloneHits = new List<HashSet<Health>>();
+
+    private Vector3 HitCenter(AttackHitbox h, Vector3 origin, Vector3 aim, bool mirrored, float radiusMul)
     {
         // พื้นที่ใหญ่ขึ้น = วงขยายออกจากตัวด้วย (วงหน้าตัวไม่จมเข้าหาตัวเมื่อรัศมีโต)
-        Vector3 right = Vector3.Cross(Vector3.up, aim);
+        // ท่ากลับข้าง (mirror) -> hitbox ฝั่งซ้าย/ขวากลับตาม
+        Vector3 right = Vector3.Cross(Vector3.up, aim) * (mirrored ? -1f : 1f);
         Vector3 local = right * h.offset.x * radiusMul + Vector3.up * h.offset.y + aim * h.offset.z * radiusMul;
-        return transform.position + local * Scale;
+        return origin + local * Scale;
     }
+
+    private Vector3 HitCenter(AttackHitbox h, Vector3 aim, float radiusMul) => HitCenter(h, transform.position, aim, Mirrored, radiusMul);
 
     private void DoHit(AttackHitbox h)
     {
+        int clones = ActiveCloneCount;
+        while (_cloneHits.Count < clones) _cloneHits.Add(new HashSet<Health>());
+
         // จังหวะใหม่ -> ล้างรายชื่อเป้าที่โดนแล้ว (hitbox ที่ time เท่ากันแชร์รายชื่อ ไม่โดนซ้อน)
+        // ร่างเงาแต่ละร่างมีรายชื่อของตัวเอง -> เป้าเดียวโดนได้จากทั้งเราและทุกร่าง (ดาเมจเพิ่มจริง)
         if (!Mathf.Approximately(h.time, _strikeTime))
         {
             _strikeTime = h.time;
             _hitThisStrike.Clear();
+            foreach (var set in _cloneHits) set.Clear();
         }
 
+        HitFrom(h, transform.position, AimDirection, Mirrored, _active.Damage, _hitThisStrike);
+        for (int c = 0; c < clones; c++)
+            HitFrom(h, GetClonePosition(c), GetCloneAim(c), IsCloneMirrored(c), _active.Damage * _active.ShadowCloneDamage, _cloneHits[c]);
+    }
+
+    private void HitFrom(AttackHitbox h, Vector3 origin, Vector3 aim, bool mirrored, float damage, HashSet<Health> alreadyHit)
+    {
+        if (damage <= 0f) return;
         float radiusMul = _active.RadiusMultiplier;
         // ใช้ PhysicsScene ของ scene ตัวเอง รองรับหลาย instance ใน process เดียว (กฎข้อ 6)
-        int count = gameObject.scene.GetPhysicsScene().OverlapSphere(HitCenter(h, AimDirection, radiusMul), h.radius * radiusMul * Scale,
+        int count = gameObject.scene.GetPhysicsScene().OverlapSphere(HitCenter(h, origin, aim, mirrored, radiusMul), h.radius * radiusMul * Scale,
             _overlap, hitMask, QueryTriggerInteraction.Ignore);
 
         for (int i = 0; i < count; i++)
@@ -275,15 +491,15 @@ public class MeleeAttack : MonoBehaviour
             var target = _overlap[i].GetComponentInParent<Health>();
             if (target == null || target == _owner || target.IsDead) continue;
             if (_owner != null && target.team == _owner.team) continue;
-            if (_hitThisStrike.Contains(target)) continue;
+            if (alreadyHit.Contains(target)) continue;
 
-            Vector3 toTarget = target.transform.position - transform.position;
+            Vector3 toTarget = target.transform.position - origin;
             toTarget.y = 0f;
-            if (h.arcAngle < 360f && toTarget.sqrMagnitude > 0.0001f && Vector3.Angle(AimDirection, toTarget) > h.arcAngle * 0.5f) continue;
+            if (h.arcAngle < 360f && toTarget.sqrMagnitude > 0.0001f && Vector3.Angle(aim, toTarget) > h.arcAngle * 0.5f) continue;
 
-            _hitThisStrike.Add(target);
-            Vector3 dir = toTarget.sqrMagnitude > 0.0001f ? toTarget.normalized : AimDirection;
-            if (target.ApplyDamage(new DamageInfo { amount = _active.Damage * h.damageMultiplier, source = gameObject, direction = dir }))
+            alreadyHit.Add(target);
+            Vector3 dir = toTarget.sqrMagnitude > 0.0001f ? toTarget.normalized : aim;
+            if (target.ApplyDamage(new DamageInfo { amount = damage * h.damageMultiplier, source = gameObject, direction = dir }))
                 Hit?.Invoke(this, target);
         }
     }

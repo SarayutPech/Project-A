@@ -116,6 +116,8 @@ public class EliteGlow : MonoBehaviour
 
         if (_renderers != null)
         {
+            // สร้างใหม่ถ้าหาย (recompile ระหว่าง Play ล้างค่าที่ไม่ได้ serialize แต่ไม่เรียก Awake ซ้ำ)
+            _block ??= new MaterialPropertyBlock();
             foreach (var r in _renderers)
             {
                 if (r == null || r is ParticleSystemRenderer) continue;

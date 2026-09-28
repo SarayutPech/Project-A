@@ -72,7 +72,7 @@ public class PlayerAttackInput : MonoBehaviour
         {
             InputAction a = ActionOf(active);
             bool stillHeld = a != null && a.IsPressed();
-            _combat.UpdateHeld(stillHeld, stillHeld ? Aim(a, cam) : transform.forward);
+            _combat.UpdateHeld(stillHeld, stillHeld ? Aim(a, cam) : transform.forward, stillHeld ? AimPoint(a, cam) : null);
             return;
         }
 
@@ -91,7 +91,7 @@ public class PlayerAttackInput : MonoBehaviour
             if (!triggered) continue;
             if (ignoreUiAndPortalClicks && IsMouse(a) && IsClickOnUiOrPortal(cam)) continue;
 
-            if (_combat.RequestAttack(i, Aim(a, cam), a.IsPressed())) return true;
+            if (_combat.RequestAttack(i, Aim(a, cam), a.IsPressed(), AimPoint(a, cam))) return true;
         }
         return false;
     }
@@ -111,6 +111,13 @@ public class PlayerAttackInput : MonoBehaviour
             if (toCursor.sqrMagnitude > 0.01f) return toCursor;
         }
         return transform.forward;
+    }
+
+    // จุดเคอร์เซอร์บนพื้น (สกิลวาร์ปใช้เลือกเป้าใกล้เคอร์เซอร์) gamepad = ไม่มี (server เลือกเป้าหน้าตัว)
+    private Vector3? AimPoint(InputAction a, Camera cam)
+    {
+        if (IsGamepad(a) || !aimAtCursor || cam == null) return null;
+        return TryCursorOnGround(cam, out Vector3 point) ? point : (Vector3?)null;
     }
 
     private bool IsClickOnUiOrPortal(Camera cam)

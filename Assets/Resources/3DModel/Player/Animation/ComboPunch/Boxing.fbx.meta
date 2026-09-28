@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: ef046819c7cdf7b48b511e93650a007f
+guid: 9995cc3036e79444689b92789a48f6ba
 ModelImporter:
   serializedVersion: 24600
   internalIDToNameTable: []
@@ -32,7 +32,7 @@ ModelImporter:
     extraUserProperties: []
     clipAnimations:
     - serializedVersion: 16
-      name: Attack_Punch
+      name: Punch_Boxing
       takeName: mixamo.com
       internalID: -203655887218126122
       firstFrame: 0

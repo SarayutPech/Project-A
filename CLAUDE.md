@@ -48,6 +48,13 @@ ARPG แนว Path of Exile (hideout + procedural map) — Unity 6000.6, URP, I
 - `Player/PlayerStats` — stat sheet ที่เดียวของ player: ค่าฐาน (Max HP / Movement Speed / Attack Speed) + `AddModifier(source, mod)` / `RemoveModifiers(source)` -> push ไป Health, PlayerMovement.moveSpeed, PlayerSkills (Attack Speed = ฐานของทุกสกิล ท่า/hitbox/animation scale ตาม)
   - ค่าตัวละครห้ามแก้ตรงที่ Health.maxHealth / PlayerMovement.moveSpeed (sheet เขียนทับ) ให้แก้ที่ PlayerStats
   - `CharacterAnimator` สลับ clip ช่อง `attackSlotClip` เป็นท่าของสกิลผ่าน runtime AnimatorOverrideController
+  - gem: `attackSpeed` (ความเร็วฐานสกิล × attack speed ตัวละคร), `animationVariants` (สุ่มท่าไม่ซ้ำติดกัน), `mirror` (Alternate/Random), `upperBodyOnly` (เล่นที่ layer `UpperBody` + mask `3DModel/Player/UpperBody.mask` ขาเดินตาม locomotion)
+  - การสุ่มท่า/กลับข้างตัดสินใน `MeleeAttack` (AnimationVariant / Mirrored / BlendWeight, PresentationCount เพิ่มทุกครั้งที่เลือกใหม่) ไม่ใช่ฝั่งภาพ -> sync ผ่านเน็ตได้
+  - channel + หลายท่า: ทุกรอบที่วนสุ่มท่าใหม่ / `blendAnimation` ผสมทับท่าหลัก (state โจมตีเป็น blend tree: ช่องท่า + `AttackBlendSlot`)
+  - layer `UpperBody` มี `AttackA`/`AttackB` สลับกัน (ช่อง `Attack_Kick` / `AttackSlotB`) แต่ละ state มี param เวลา/กลับข้าง/น้ำหนักผสมของตัวเอง เข้าด้วย CrossFade จาก `CharacterAnimator`
+  - Animator param: `Attacking` = ท่าเต็มตัว (บล็อกท่ากระโดด) / `AttackingUpper` = ท่าท่อนบน (ไม่บล็อก)
+  - gem `areaOfEffect` = พื้นที่ฐาน (รัศมี × √area) / `teleportToTarget` = วาร์ปไปข้างศัตรูก่อนตี (Flicker Strike) ย้ายตัวผ่าน `ISkillMover` / `shadowCloneCount` = ร่างเงาตีเพิ่มตอนกดค้าง
+  - ร่างเงา: ตำแหน่ง/ทิศ/ข้างคำนวณใน `MeleeAttack` (GetClonePosition / GetCloneAim / IsCloneMirrored) ใช้ทั้ง hitbox จริงและภาพ (`ShadowCloneEffect` บน Visual)
 - `UI/DamageNumbers` — เลขดาเมจ (ฟัง `Health.AnyDamaged` pool BillboardText) ห้ามใช้ `TMP.alpha` กับ material BillboardText (หน้าตัวอักษรโปร่ง) ใช้ color.a แทน
 - `Assets/Resources/Scripts/Enemy/` — `EnemyMotor` (Rigidbody + `JumpTo` วิถีโค้ง), `EnemyAI` (Idle/Wander → Suspicious → Chase → Dead), `EnemySpawner` (เกิดเป็น pack + elite สุ่มจาก seed), `EnemyPack` (เดินเล่นรอบจุดกลาง/เรียกเพื่อนรุม), `EnemyRank` (elite: ขนาด/HP/ดาเมจ) + `EliteGlow` (presentation)
 - `ProceduralMap/Navigation/MapNavGraph` — grid graph ของ AI สร้างจาก TerraceLayout ทุกครั้งที่ generate (edge Walk / JumpUp / JumpDown) อ้างผ่าน `generator.NavGraph` ดูกราฟด้วย `MapNavGraphGizmos`

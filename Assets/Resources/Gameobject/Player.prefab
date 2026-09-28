@@ -414,7 +414,7 @@ MonoBehaviour:
       level: 1
   - name: Skill 3
     activeGem:
-      gem: {fileID: 0}
+      gem: {fileID: 11400000, guid: 538f8f4861d00e94cae72dd866fb0231, type: 2}
       level: 1
     supportGems:
     - gem: {fileID: 0}
@@ -596,6 +596,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
       insertIndex: -1
       addedObject: {fileID: 7895768076592646724}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 8580099466286661492}
   m_SourcePrefab: {fileID: 100100000, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
 --- !u!1 &346355914742209019 stripped
 GameObject:
@@ -620,6 +623,11 @@ MonoBehaviour:
   runClipSpeed: 6.6
   locomotionPlaybackRange: {x: 0.5, y: 2.5}
   attackSlotClip: {fileID: -203655887218126122, guid: 1236c514161d20748b02a39411a6ce5d, type: 3}
+  attackSlotClipB: {fileID: 7400000, guid: ba44e1122215a954a8b8f5f1113919b0, type: 2}
+  blendSlotClip: {fileID: 7400000, guid: 47356107b2d74e6498e4575b735d96be, type: 2}
+  upperBodyLayer: UpperBody
+  upperBodyFadeTime: 0.1
+  attackCrossFade: 0.08
 --- !u!114 &7895768076592646724
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -669,6 +677,27 @@ MonoBehaviour:
   lifetime: 0.75
   startAlpha: 0.8
   trailAfterDash: 0.05
+  ghostOnSkillTeleport: 1
+--- !u!114 &8580099466286661492
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 346355914742209019}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 746311d04d291d849a86b48f6651e888, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShadowCloneEffect
+  cloneModel: {fileID: 919132149155446097, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+  ghostMaterial: {fileID: 2100000, guid: a60202fe19834ef43aa3e8be2c8f3a91, type: 2}
+  color: {r: 0.45, g: 0.25, b: 1, a: 0.9}
+  colorProperty: _Color
+  fadeInTime: 0.08
+  fadeOutTime: 0.25
+  timeDelay: 0.06
+  followSharpness: 18
 --- !u!4 &1118388533206238017 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}

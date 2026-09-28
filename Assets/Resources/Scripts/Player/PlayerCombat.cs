@@ -57,27 +57,30 @@ public class PlayerCombat : MonoBehaviour
     // คำขอใช้สกิลช่อง slot จาก input (ภายหลัง = ServerRpc) ส่งมาแค่ "ช่องไหน + ทิศ" ไม่ส่งผลลัพธ์ (กฎข้อ 1)
     // server เช็คเองว่าตีได้ไหม: ช่องมีสกิล / ตาย / ยังล็อกตอนโหลด map / dash อยู่ / ลอยอยู่ (ถ้าปิด air attack) / cooldown ของสกิลนั้น
     // held = ยังกดค้างอยู่ (ท่า channel จะวนต่อจนกว่า UpdateHeld(false))
-    public bool RequestAttack(int slot, Vector3 aimDirection, bool held = false)
+    // aimPoint = จุดเคอร์เซอร์บนพื้น (สกิลวาร์ปใช้เลือกเป้า) server เลือกเป้าเองในระยะของ gem ค่านี้เป็นแค่ตัวช่วย
+    public bool RequestAttack(int slot, Vector3 aimDirection, bool held = false, Vector3? aimPoint = null)
     {
         if (Health.IsDead || !_movement.CanMove || _movement.IsDashing) return false;
         if (!allowAirAttack && !_movement.IsGrounded) return false;
         if (!IsFinite(aimDirection)) return false; // ไม่ trust ค่าจาก client (กฎข้อ 8)
+        if (aimPoint.HasValue && !IsFinite(aimPoint.Value)) aimPoint = null;
 
         SkillSlot s = _skills != null ? _skills.GetSlot(slot) : null; // index จาก client ต้องเช็คช่วง
         if (s == null || s.Resolved == null) return false;
 
-        if (!Attack.TryAttack(s.Resolved, aimDirection, held)) return false;
+        if (!Attack.TryAttack(s.Resolved, aimDirection, held, aimPoint)) return false;
         _activeSlot = slot;
         _movement.FaceDirection(Attack.AimDirection);
         return true;
     }
 
     // สถานะปุ่มระหว่างท่า (ภายหลัง = ServerRpc ทุก tick / ตอนเปลี่ยน) ส่งมาแค่ "ยังกดอยู่ไหม + ทิศ"
-    public void UpdateHeld(bool held, Vector3 aimDirection)
+    public void UpdateHeld(bool held, Vector3 aimDirection, Vector3? aimPoint = null)
     {
         if (!Attack.IsAttacking) return;
         Attack.SetHeld(held && !Health.IsDead);
-        if (held && IsFinite(aimDirection)) Attack.SetAim(aimDirection);
+        if (aimPoint.HasValue && !IsFinite(aimPoint.Value)) aimPoint = null;
+        if (held && IsFinite(aimDirection)) Attack.SetAim(aimDirection, aimPoint);
     }
 
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.x) && float.IsFinite(v.y) && float.IsFinite(v.z);

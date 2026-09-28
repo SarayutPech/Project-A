@@ -21,8 +21,18 @@ public class CharacterAnimator : MonoBehaviour
     public Vector2 locomotionPlaybackRange = new Vector2(0.5f, 2.5f);
 
     [Header("Skill Animation")]
-    [Tooltip("clip ที่วางไว้ใน state Attack ของ Animator Controller (ช่องที่จะถูกแทนด้วยท่าของสกิลปัจจุบัน)")]
+    [Tooltip("clip ช่อง A ใน Animator Controller (state Attack ของ base layer + AttackA ของ layer ท่อนบน) ถูกแทนด้วยท่าของสกิล")]
     public AnimationClip attackSlotClip;
+    [Tooltip("clip ช่อง B (AttackB ของ layer ท่อนบน) สลับใช้กับช่อง A ทุกครั้งที่เปลี่ยนท่า -> ท่าเก่าเฟดออกขณะท่าใหม่เฟดเข้า")]
+    public AnimationClip attackSlotClipB;
+    [Tooltip("clip ช่องท่าผสม (ลูกที่ 2 ของ blend tree ใน state โจมตี) ถูกแทนด้วย Blend Animation ของสกิล")]
+    public AnimationClip blendSlotClip;
+    [Tooltip("ชื่อ layer ท่อนบนใน Animator (สกิลที่เปิด Upper Body Only เล่นที่ layer นี้ ขายังเดินตาม locomotion)")]
+    public string upperBodyLayer = "UpperBody";
+    [Tooltip("เวลาเฟด layer ท่อนบนเข้า/ออก (วินาที)")]
+    [Min(0.01f)] public float upperBodyFadeTime = 0.1f;
+    [Tooltip("เวลาเฟดตอนเปลี่ยนท่า (เริ่มท่าใหม่ / channel วนแล้วสุ่มท่าใหม่)")]
+    [Min(0f)] public float attackCrossFade = 0.08f;
 
     private static readonly int SpeedHash = Animator.StringToHash("Speed");
     private static readonly int GaitHash = Animator.StringToHash("Gait");
@@ -36,6 +46,20 @@ public class CharacterAnimator : MonoBehaviour
     private static readonly int AttackTimeHash = Animator.StringToHash("AttackTime");
     private static readonly int DeadHash = Animator.StringToHash("Dead");
     private static readonly int AttackingHash = Animator.StringToHash("Attacking");
+    private static readonly int AttackMirrorHash = Animator.StringToHash("AttackMirror");
+    private static readonly int AttackBlendHash = Animator.StringToHash("AttackBlend");
+    private static readonly int AttackingUpperHash = Animator.StringToHash("AttackingUpper");
+    // layer ท่อนบน: 2 state สลับกัน แต่ละ state มีเวลา/กลับข้าง/น้ำหนักผสมของตัวเอง (ท่าเก่าค้างค่าเดิมระหว่างเฟดออก)
+    private static readonly int UpperStateA = Animator.StringToHash("AttackA");
+    private static readonly int UpperStateB = Animator.StringToHash("AttackB");
+    private static readonly int[] UpperTimeHash = { Animator.StringToHash("AttackTimeA"), Animator.StringToHash("AttackTimeB") };
+    private static readonly int[] UpperMirrorHash = { Animator.StringToHash("AttackMirrorA"), Animator.StringToHash("AttackMirrorB") };
+    private static readonly int[] UpperBlendHash = { Animator.StringToHash("AttackBlendA"), Animator.StringToHash("AttackBlendB") };
+
+    private int _upperLayerIndex = -1;
+    private bool _upperActive; // ท่าปัจจุบันเล่นที่ layer ท่อนบน
+    private int _upperSide;    // 0 = A, 1 = B
+    private int _seenPresentation;
 
     private Animator _animator;
     private ICharacterLocomotion _source;
@@ -55,6 +79,7 @@ public class CharacterAnimator : MonoBehaviour
         _health = GetComponentInParent<Health>();
         if (_source != null) _seenJumpCount = _source.JumpCount;
         if (_attack != null) _seenAttackCount = _attack.AttackCount;
+        _upperLayerIndex = string.IsNullOrEmpty(upperBodyLayer) ? -1 : _animator.GetLayerIndex(upperBodyLayer);
     }
 
     private void OnEnable()
@@ -82,12 +107,14 @@ public class CharacterAnimator : MonoBehaviour
     // ท่าของสกิลตั้งต้น (ศัตรู) / player ที่มีหลาย slot เลือกท่าตอนเริ่มท่าจาก ActiveSkill แทน
     private AnimationClip DefaultClip() => _attack != null && _attack.Skill != null ? _attack.Skill.Animation : null;
 
-    // ใส่ท่าลงช่อง attackSlotClip ผ่าน override controller ของตัวนี้
+    // ใส่ท่าลงช่อง A ผ่าน override controller ของตัวนี้
     // สร้าง override ครั้งเดียว (เปลี่ยน controller ทำให้ Animator รีเซ็ต) ครั้งต่อไปแค่สลับ clip
-    private void ApplySkillAnimation(AnimationClip clip)
+    private void ApplySkillAnimation(AnimationClip clip) => SetSlot(attackSlotClip, clip);
+
+    private void SetSlot(AnimationClip slot, AnimationClip clip)
     {
-        if (!EnsureOverride() || clip == null) return;
-        if (_override[attackSlotClip] != clip) _override[attackSlotClip] = clip;
+        if (!EnsureOverride() || slot == null || clip == null) return;
+        if (_override[slot] != clip) _override[slot] = clip;
     }
 
     private bool EnsureOverride()
@@ -123,22 +150,75 @@ public class CharacterAnimator : MonoBehaviour
     {
         if (_attack == null) return;
 
-        // ระหว่างท่าโจมตี: ท่ากระโดด/dash ไม่ตัดท่าโจมตี (transition ใน Animator เช็ค Attacking)
-        _animator.SetBool(AttackingHash, _attack.IsAttacking && !dead);
+        // เริ่มท่าใหม่ / channel วนแล้วสุ่มท่าใหม่ (นับจาก MeleeAttack ไม่ใช่จาก input)
+        // ทำก่อนตั้ง flag ด้านล่าง ให้ flag เป็นของท่าที่เพิ่งเริ่ม
+        if (_attack.AttackCount != _seenAttackCount)
+        {
+            _seenAttackCount = _attack.AttackCount;
+            _seenPresentation = _attack.PresentationCount;
+            if (!dead) PlayAttackAnimation(true);
+        }
+        else if (_attack.PresentationCount != _seenPresentation)
+        {
+            _seenPresentation = _attack.PresentationCount;
+            if (!dead && _attack.IsAttacking) PlayAttackAnimation(false);
+        }
+
+        // ท่าเต็มตัว: ท่ากระโดด/dash ไม่ตัดท่าโจมตี (transition ใน Animator เช็ค Attacking)
+        // ท่าท่อนบน: base layer ยังเป็น locomotion ปกติ (กระโดดได้) layer ท่อนบนออกเมื่อ AttackingUpper = false
+        bool attacking = _attack.IsAttacking && !dead;
+        _animator.SetBool(AttackingHash, attacking && !_upperActive);
+        _animator.SetBool(AttackingUpperHash, attacking && _upperActive);
 
         // เวลาของท่า = ตำแหน่งในท่าของ simulation (state Attack ใช้ Motion Time = AttackTime)
         // -> ท่ายืด/หดตาม attack speed และวนตอน channel ตรงกับ hitbox เสมอ
         // เติมเวลาที่ผ่านไปหลัง physics tick ล่าสุด ไม่งั้นท่าขยับเป็นขั้นตาม 50Hz
-        if (_attack.IsAttacking) _animator.SetFloat(AttackTimeHash, _attack.PredictNormalizedTime(Time.time - Time.fixedTime));
+        if (_attack.IsAttacking)
+        {
+            float t = _attack.PredictNormalizedTime(Time.time - Time.fixedTime);
+            _animator.SetFloat(_upperActive ? UpperTimeHash[_upperSide] : AttackTimeHash, t);
+        }
 
-        // เริ่มท่าใหม่ (นับจาก MeleeAttack ไม่ใช่จาก input)
-        if (_attack.AttackCount == _seenAttackCount) return;
-        _seenAttackCount = _attack.AttackCount;
-        if (dead) return;
-        _animator.SetFloat(AttackTimeHash, 0f);
-        // หลาย slot: สลับท่าเป็นของสกิลที่เพิ่งใช้ ก่อนเข้า state Attack
-        if (_attack.ActiveSkill != null) ApplySkillAnimation(_attack.ActiveSkill.Animation);
-        _animator.SetTrigger(AttackHash);
+        // layer ท่อนบน: เฟดเข้าระหว่างท่าท่อนบน เฟดออกเมื่อจบ (น้ำหนัก 0 = ไม่มีผล ขาและตัวกลับเป็น locomotion ทั้งหมด)
+        if (_upperLayerIndex >= 0)
+        {
+            float target = _upperActive && _attack.IsAttacking && !dead ? 1f : 0f;
+            float w = Mathf.MoveTowards(_animator.GetLayerWeight(_upperLayerIndex), target, Time.deltaTime / upperBodyFadeTime);
+            _animator.SetLayerWeight(_upperLayerIndex, w);
+        }
+    }
+
+    // เล่นท่าที่ simulation เลือกไว้ (variant + กลับข้าง + น้ำหนักท่าผสม)
+    // newAttack = เริ่มท่าใหม่ / false = channel วนแล้วสุ่มท่าใหม่กลางท่า
+    private void PlayAttackAnimation(bool newAttack)
+    {
+        ResolvedSkill skill = _attack.ActiveSkill;
+        if (skill == null) return;
+        AnimationClip clip = skill.GetAnimation(_attack.AnimationVariant);
+        AnimationClip blend = skill.BlendAnimation;
+        float blendWeight = blend != null ? _attack.BlendWeight : 0f;
+        if (blend != null) SetSlot(blendSlotClip, blend);
+        float t = _attack.NormalizedTime;
+
+        _upperActive = skill.UpperBodyOnly && _upperLayerIndex >= 0 && attackSlotClipB != null;
+        if (_upperActive)
+        {
+            // สลับช่อง A/B ทุกครั้ง: ท่าเก่าเล่นต่อที่ช่องเดิม (ค่าเวลา/กลับข้างค้างไว้) ระหว่างเฟดไปท่าใหม่
+            _upperSide = 1 - _upperSide;
+            SetSlot(_upperSide == 0 ? attackSlotClip : attackSlotClipB, clip);
+            _animator.SetFloat(UpperTimeHash[_upperSide], t);
+            _animator.SetBool(UpperMirrorHash[_upperSide], _attack.Mirrored);
+            _animator.SetFloat(UpperBlendHash[_upperSide], blendWeight);
+            _animator.CrossFadeInFixedTime(_upperSide == 0 ? UpperStateA : UpperStateB, attackCrossFade, _upperLayerIndex);
+            return;
+        }
+
+        // เต็มตัว (base layer): state Attack เดียว
+        ApplySkillAnimation(clip);
+        _animator.SetFloat(AttackTimeHash, t);
+        _animator.SetBool(AttackMirrorHash, _attack.Mirrored);
+        _animator.SetFloat(AttackBlendHash, blendWeight);
+        if (newAttack) _animator.SetTrigger(AttackHash);
     }
 
     private void UpdateLocomotion(bool dead)
@@ -173,8 +253,9 @@ public class CharacterAnimator : MonoBehaviour
             {
                 // กระโดดระหว่างโจมตี: ไม่ตั้ง trigger (ถูกบล็อกแล้วจะค้างไปเล่นท่ากระโดดทีหลังตอนลงพื้นแล้ว)
                 // ท่าโจมตีจบกลางอากาศ Animator ไปท่าตกเอง
-                bool attacking = _attack != null && _attack.IsAttacking;
-                if (!attacking) _animator.SetTrigger(_source.LastJumpFromGround ? JumpHash : AirJumpHash);
+                // ท่าท่อนบนไม่บล็อก -> ต่อยไปกระโดดไปได้
+                bool fullBodyAttack = _attack != null && _attack.IsAttacking && !_upperActive;
+                if (!fullBodyAttack) _animator.SetTrigger(_source.LastJumpFromGround ? JumpHash : AirJumpHash);
                 _jumped = true;
             }
         }

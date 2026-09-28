@@ -28,6 +28,23 @@ public class ResolvedSkill
     public float LoopEnd => Gem.loopEnd;
     public float MaxChannelTime => Gem.maxChannelTime;
     public AnimationClip Animation => Gem.animation;
+    public AnimationClip GetAnimation(int variant) => Gem.GetAnimation(variant);
+    public int AnimationCount => Gem.AnimationCount;
+    public SkillMirrorMode Mirror => Gem.mirror;
+    public bool UpperBodyOnly => Gem.upperBodyOnly;
+    public bool TeleportToTarget => Gem.teleportToTarget;
+    public float TeleportRange => Gem.teleportRange;
+    public float TeleportLandingGap => Gem.teleportLandingGap;
+    public bool AvoidSameTarget => Gem.avoidSameTarget;
+    public int ShadowCloneCount => Gem.shadowCloneCount;
+    public bool ShadowClonesOnlyWhileHeld => Gem.shadowClonesOnlyWhileHeld;
+    public float ShadowCloneDistance => Gem.shadowCloneDistance;
+    public float ShadowCloneAngle => Gem.shadowCloneAngle;
+    public float ShadowCloneDamage => Gem.shadowCloneDamage;
+    public AnimationClip BlendAnimation => Gem.blendAnimation;
+    public Vector2 BlendWeightRange => Gem.blendWeightRange;
+    // เปลี่ยนท่า/ข้างได้ (มีให้สุ่มหรือกลับข้าง) -> channel สุ่มใหม่ทุกรอบที่วน
+    public bool HasPresentationVariety => Gem.AnimationCount > 1 || Gem.mirror != SkillMirrorMode.None;
 
     // support ที่มีผลจริง (ตัดช่องว่าง / gem ซ้ำชนิดเดียวกันนับครั้งเดียวแบบ PoE)
     public IReadOnlyList<GemInstance> ActiveSupports => _supports;
@@ -56,9 +73,11 @@ public class ResolvedSkill
             foreach (var m in extraModifiers) mods.Add((m, 1));
 
         r.Damage = Mathf.Max(0f, StatMath.Apply(gem.DamageAtLevel(r.Level), StatType.Damage, mods));
-        r.AttackSpeed = Mathf.Max(0.1f, StatMath.Apply(Mathf.Max(0.1f, baseAttackSpeed), StatType.AttackSpeed, mods));
+        // ฐาน = ความเร็วตีตัวละคร × ความเร็วฐานของสกิล แล้ว support บวก/คูณต่อ
+        r.AttackSpeed = Mathf.Max(0.1f, StatMath.Apply(Mathf.Max(0.1f, baseAttackSpeed) * gem.attackSpeed, StatType.AttackSpeed, mods));
         r.MoveSpeedMultiplier = Mathf.Clamp(StatMath.Apply(1f - gem.moveSlowPercent * 0.01f, StatType.MoveSpeedWhileUsing, mods), 0f, 2f);
-        r.AreaMultiplier = Mathf.Max(0.1f, StatMath.Apply(1f, StatType.AreaOfEffect, mods));
+        // ฐาน = พื้นที่ของสกิล (gem) แล้ว stat sheet / support บวก/คูณต่อ
+        r.AreaMultiplier = Mathf.Max(0.1f, StatMath.Apply(gem.areaOfEffect, StatType.AreaOfEffect, mods));
         return r;
     }
 }

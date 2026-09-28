@@ -12,7 +12,7 @@ using UnityEngine.SceneManagement;
 // ถ้าปิด: เดินเข้าไม่ได้ (ชนกำแพง Hole Blockers ของ generator) แต่ตอนกระโดด/dash จะทะลุกำแพงนี้ข้ามไปได้
 // ถ้าข้ามไม่พ้นแล้วตกน้ำ (หรือตกต่ำกว่า respawnBelowY) จะกลับไปยืนจุดปลอดภัยล่าสุด
 [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider))]
-public class PlayerMovement : MonoBehaviour, ICharacterLocomotion
+public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
 {
     [Header("Movement")]
     [Min(0f)] public float moveSpeed = 5f;
@@ -158,6 +158,13 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion
         _body.linearVelocity = velocity;
         _jumpedSinceGrounded = true;
         IsGrounded = false;
+    }
+
+    // สกิลวาร์ป (Flicker Strike): วางเท้าแล้วหันหาเป้า
+    public void SkillTeleport(Vector3 footPosition, Vector3 facing)
+    {
+        Teleport(footPosition);
+        FaceDirection(facing);
     }
 
     // หันไปทางนี้ทันที (แนวนอน) เช่นหันหาเป้าตอนโจมตี

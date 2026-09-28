@@ -18,24 +18,43 @@ MonoBehaviour:
   gemColor: {r: 0.85, g: 0.25, b: 0.2, a: 1}
   icon: {fileID: 0}
   maxLevel: 20
-  animation: {fileID: -203655887218126122, guid: ef046819c7cdf7b48b511e93650a007f, type: 3}
+  animation: {fileID: -203655887218126122, guid: 9995cc3036e79444689b92789a48f6ba, type: 3}
+  animationVariants:
+  - {fileID: -203655887218126122, guid: 9995cc3036e79444689b92789a48f6ba, type: 3}
+  - {fileID: -203655887218126122, guid: 1d3ae46faddcb6449bd50c4aecc44220, type: 3}
+  - {fileID: -203655887218126122, guid: d209c135895d71b4b9615bf05ca7d8eb, type: 3}
+  blendAnimation: {fileID: -203655887218126122, guid: e91754d677528c1439334854a228f597, type: 3}
+  blendWeightRange: {x: 0.1, y: 1}
+  mirror: 1
+  upperBodyOnly: 1
   duration: 1.3
-  cooldown: 0.6
-  baseDamage: 8
+  attackSpeed: 1
+  cooldown: 0.1
+  areaOfEffect: 1
+  teleportToTarget: 0
+  teleportRange: 12
+  teleportLandingGap: 0.3
+  avoidSameTarget: 1
+  shadowCloneCount: 2
+  shadowClonesOnlyWhileHeld: 1
+  shadowCloneDistance: 1.3
+  shadowCloneAngle: 55
+  shadowCloneDamage: 0.35
+  baseDamage: 15
   damagePerLevel: 1
   hitboxes:
   - time: 0.27
     offset: {x: 0, y: 1, z: 0.8}
-    radius: 0.9
+    radius: 1.8
     arcAngle: 100
     damageMultiplier: 1
   - time: 0.62
     offset: {x: 0, y: 1, z: 0.8}
-    radius: 0.9
+    radius: 1.8
     arcAngle: 100
     damageMultiplier: 1
-  moveSlowPercent: 100
-  channel: 0
+  moveSlowPercent: 0
+  channel: 1
   loopStart: 0.25
   loopEnd: 0.75
-  maxChannelTime: 0
+  maxChannelTime: 4

@@ -29,6 +29,8 @@ public class DashAfterimage : MonoBehaviour
     [Range(0f, 1f)] public float startAlpha = 0.8f;
     [Tooltip("ทิ้งเงาต่ออีกกี่วินาทีหลัง dash จบ")]
     [Min(0f)] public float trailAfterDash = 0.05f;
+    [Tooltip("สกิลวาร์ป (เช่น Flicker Strike) ทิ้งเงาไว้ที่จุดเดิมก่อนหายไป")]
+    public bool ghostOnSkillTeleport = true;
 
     private static readonly int ColorId = Shader.PropertyToID("_Color");
 
@@ -50,6 +52,19 @@ public class DashAfterimage : MonoBehaviour
     private float _spawnTimer;
     private float _lastDashTime = float.NegativeInfinity;
     private bool _wasEmitting;
+    private MeleeAttack _attack;
+
+    private void OnEnable()
+    {
+        if (_attack == null) _attack = GetComponentInParent<MeleeAttack>();
+        if (_attack != null) _attack.Teleporting += OnSkillTeleport;
+    }
+
+    // เรียกก่อนตัวย้าย -> ถ่ายท่าตอนนี้ไว้ที่จุดเดิม
+    private void OnSkillTeleport(MeleeAttack attack, Vector3 from, Vector3 to)
+    {
+        if (ghostOnSkillTeleport && enabled) Spawn();
+    }
 
     private void Awake()
     {
@@ -84,6 +99,7 @@ public class DashAfterimage : MonoBehaviour
 
     private void OnDisable()
     {
+        if (_attack != null) _attack.Teleporting -= OnSkillTeleport;
         // ตอน unload scene container อาจถูกทำลายก่อน component นี้ -> ข้ามตัวที่หายไปแล้ว
         foreach (var g in _ghosts)
             if (g.obj != null) g.obj.SetActive(false);

@@ -348,6 +348,11 @@ MonoBehaviour:
   runClipSpeed: 6.6
   locomotionPlaybackRange: {x: 0.5, y: 2.5}
   attackSlotClip: {fileID: -203655887218126122, guid: 1236c514161d20748b02a39411a6ce5d, type: 3}
+  attackSlotClipB: {fileID: 7400000, guid: ba44e1122215a954a8b8f5f1113919b0, type: 2}
+  blendSlotClip: {fileID: 7400000, guid: 47356107b2d74e6498e4575b735d96be, type: 2}
+  upperBodyLayer: UpperBody
+  upperBodyFadeTime: 0.1
+  attackCrossFade: 0.08
 --- !u!114 &8286355109525363496
 MonoBehaviour:
   m_ObjectHideFlags: 0
