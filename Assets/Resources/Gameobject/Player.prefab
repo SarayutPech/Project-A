@@ -14,6 +14,12 @@ GameObject:
   - component: {fileID: 7703290480706648453}
   - component: {fileID: 1218490976296656953}
   - component: {fileID: 2732876804173154947}
+  - component: {fileID: 3231467462830770116}
+  - component: {fileID: 37348245729243874}
+  - component: {fileID: 8669375049053260422}
+  - component: {fileID: 1897609257874777050}
+  - component: {fileID: 3016516361691051616}
+  - component: {fileID: 6930004257101281854}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -193,6 +199,265 @@ CapsuleCollider:
   m_Height: 2.1
   m_Direction: 1
   m_Center: {x: 0, y: 0.74999994, z: 0}
+--- !u!114 &3231467462830770116
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b48d394e09ab5bd45bf14ee982fe5f65, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Health
+  team: 0
+  maxHealth: 100
+--- !u!114 &37348245729243874
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 83d0c917db1870540bfc51a9a5569bdf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MeleeAttack
+  defaultSkill: {fileID: 11400000, guid: 2ed4a20b23cb687439d5eabed2b9b6f1, type: 2}
+  defaultSkillLevel: 1
+  hitMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+--- !u!114 &8669375049053260422
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 548f59cad9e145649a1e6eca837f6c25, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerCombat
+  respawnDelay: 4
+  respawnHealthFraction: 1
+  deathKnockbackSpeed: 4
+  deathKnockbackUp: 3
+  allowAirAttack: 1
+  allowDashWhileAttacking: 1
+--- !u!114 &1897609257874777050
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 91a0bb588e198ee45a31352fd2fb7d11, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerAttackInput
+  slotBindings:
+  - action:
+      m_Name: Skill 1
+      m_Type: 1
+      m_ExpectedControlType: 
+      m_Id: dfa6b478-503e-4fd6-90af-b91d49387d41
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings:
+      - m_Name: 
+        m_Id: fcd05f81-e2f3-4a0a-8e70-e46c53d749cc
+        m_Path: <Mouse>/leftButton
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Skill 1
+        m_Flags: 0
+      - m_Name: 
+        m_Id: 490b7dff-11c0-45f5-b1ff-cfb86db5e981
+        m_Path: <Gamepad>/rightTrigger
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Skill 1
+        m_Flags: 0
+      m_Flags: 0
+      m_Priority: 0
+  - action:
+      m_Name: Skill 2
+      m_Type: 1
+      m_ExpectedControlType: 
+      m_Id: 6167b60d-b2c0-4252-bd12-a1d8dd44bde1
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings:
+      - m_Name: 
+        m_Id: dec497ae-ff6a-4a0d-ae2b-4c6c3a55b6b7
+        m_Path: <Mouse>/rightButton
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Skill 2
+        m_Flags: 0
+      - m_Name: 
+        m_Id: 87da0a8b-a625-4c2b-9e50-28f7c093130f
+        m_Path: <Gamepad>/leftTrigger
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Skill 2
+        m_Flags: 0
+      m_Flags: 0
+      m_Priority: 0
+  - action:
+      m_Name: Skill 3
+      m_Type: 1
+      m_ExpectedControlType: 
+      m_Id: 0647b614-7a68-43f5-bedb-910b66ead416
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings:
+      - m_Name: 
+        m_Id: fada7d72-f4c9-4ec6-a9f5-8c78611c42d6
+        m_Path: <Keyboard>/q
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Skill 3
+        m_Flags: 0
+      - m_Name: 
+        m_Id: 3dbc7b1d-234e-4ae8-97ce-10cf30179c5a
+        m_Path: <Gamepad>/rightShoulder
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Skill 3
+        m_Flags: 0
+      m_Flags: 0
+      m_Priority: 0
+  - action:
+      m_Name: Skill 4
+      m_Type: 1
+      m_ExpectedControlType: 
+      m_Id: 34e91e62-b9e6-42a0-9ec3-5058f80f3a3d
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings:
+      - m_Name: 
+        m_Id: 11e6ec36-0179-4011-9f13-ed7185c61087
+        m_Path: <Keyboard>/e
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Skill 4
+        m_Flags: 0
+      - m_Name: 
+        m_Id: 62260891-5d7b-46a7-a5c4-6c6104df6468
+        m_Path: <Gamepad>/leftShoulder
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Skill 4
+        m_Flags: 0
+      m_Flags: 0
+      m_Priority: 0
+  holdToRepeat: 1
+  aimAtCursor: 1
+  aimCamera: {fileID: 0}
+  ignoreUiAndPortalClicks: 1
+--- !u!114 &3016516361691051616
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c1892315c0de5040a48793bbe05b6bc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerSkills
+  slots:
+  - name: Skill 1
+    activeGem:
+      gem: {fileID: 11400000, guid: 2ed4a20b23cb687439d5eabed2b9b6f1, type: 2}
+      level: 1
+    supportGems:
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+  - name: Skill 2
+    activeGem:
+      gem: {fileID: 11400000, guid: 7f391da0385e7ba44b63e9de920920f1, type: 2}
+      level: 1
+    supportGems:
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+  - name: Skill 3
+    activeGem:
+      gem: {fileID: 0}
+      level: 1
+    supportGems:
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+  - name: Skill 4
+    activeGem:
+      gem: {fileID: 0}
+      level: 1
+    supportGems:
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+--- !u!114 &6930004257101281854
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 816b4b37b618e6c49b6362c88769d856, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerStats
+  baseMaxHealth: 100
+  baseMovementSpeed: 5
+  baseAttackSpeed: 3
+  modifiers: []
 --- !u!1001 &580939129535964330
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -349,12 +614,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ac2d63136f917264d8363970eff70417, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerAnimator
-  movement: {fileID: 7703290480706648453}
   airborneGrace: 0.1
   gaitDampTime: 0.12
   walkClipSpeed: 2.3
   runClipSpeed: 6.6
   locomotionPlaybackRange: {x: 0.5, y: 2.5}
+  attackSlotClip: {fileID: -203655887218126122, guid: 1236c514161d20748b02a39411a6ce5d, type: 3}
 --- !u!114 &7895768076592646724
 MonoBehaviour:
   m_ObjectHideFlags: 0

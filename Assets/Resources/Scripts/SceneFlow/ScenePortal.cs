@@ -39,11 +39,25 @@ public class ScenePortal : MonoBehaviour
         }
     }
 
+    // portal ที่เปิดอยู่ทั้งหมด ให้ระบบคลิกอื่น (เช่น PlayerAttackInput) รู้ว่าคลิกนี้เป็นการเข้า portal ไม่ใช่โจมตี
+    private static readonly System.Collections.Generic.List<ScenePortal> _active = new System.Collections.Generic.List<ScenePortal>();
+
+    // ray นี้โดน portal ที่ player อยู่ในระยะ (คลิกแล้วจะวาร์ป)
+    public static bool IsEnterableUnder(Ray ray, float maxDistance)
+    {
+        foreach (var portal in _active)
+            if (portal.PlayerInRange && portal._collider.Raycast(ray, out _, maxDistance)) return true;
+        return false;
+    }
+
     private void Awake()
     {
         _collider = GetComponent<Collider>();
         if (inRangeIndicator != null) inRangeIndicator.SetActive(false);
     }
+
+    private void OnEnable() => _active.Add(this);
+    private void OnDisable() => _active.Remove(this);
 
     private void Update()
     {

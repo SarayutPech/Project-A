@@ -12,7 +12,7 @@ using UnityEngine.SceneManagement;
 // ถ้าปิด: เดินเข้าไม่ได้ (ชนกำแพง Hole Blockers ของ generator) แต่ตอนกระโดด/dash จะทะลุกำแพงนี้ข้ามไปได้
 // ถ้าข้ามไม่พ้นแล้วตกน้ำ (หรือตกต่ำกว่า respawnBelowY) จะกลับไปยืนจุดปลอดภัยล่าสุด
 [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider))]
-public class PlayerMovement : MonoBehaviour
+public class PlayerMovement : MonoBehaviour, ICharacterLocomotion
 {
     [Header("Movement")]
     [Min(0f)] public float moveSpeed = 5f;
@@ -126,6 +126,48 @@ public class PlayerMovement : MonoBehaviour
     public int JumpCount { get; private set; }
     // ครั้งล่าสุดกระโดดจากพื้น (false = กระโดดกลางอากาศ)
     public bool LastJumpFromGround { get; private set; }
+    public Vector3 Velocity => _body != null ? _body.linearVelocity : Vector3.zero;
+    public float MoveSpeed => moveSpeed;
+
+    // ระบบอื่น (PlayerCombat: ระหว่างโจมตี/ตาย) คุมการเคลื่อนที่ชั่วคราว ยังโดน gravity/ชนปกติ ต่างจาก CanMove ที่แช่ตัวไว้
+    // ตัวคูณความเร็วเดินจาก input (0 = ยืนนิ่ง) คิดทั้งบนพื้นและกลางอากาศ
+    public float ActionSpeedMultiplier { get; set; } = 1f;
+    // ห้ามกระโดด/dash/หันตาม input
+    public bool ActionLocked
+    {
+        get => _actionLocked;
+        set
+        {
+            _actionLocked = value;
+            if (!value) return;
+            _dashRequested = false;
+            _dashKeyDownTime = -1f;
+            _sprint = false;
+            EndDash(true);
+        }
+    }
+    private bool _actionLocked;
+    // ห้าม dash อย่างเดียว (เช่นระหว่างท่าโจมตี ยังเดิน/กระโดดได้)
+    public bool DashBlocked { get; set; }
+
+    // ผลักตัวด้วยความเร็วนี้ (เช่นกระเด็นตอนตาย) นับเป็นลอยตัว -> ไม่ถูกดูดกลับพื้น/หักความเร็วตามพื้นทันที
+    public void Knockback(Vector3 velocity)
+    {
+        if (_body == null || _body.isKinematic) return;
+        EndDash(false);
+        _body.linearVelocity = velocity;
+        _jumpedSinceGrounded = true;
+        IsGrounded = false;
+    }
+
+    // หันไปทางนี้ทันที (แนวนอน) เช่นหันหาเป้าตอนโจมตี
+    public void FaceDirection(Vector3 direction)
+    {
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.0001f || _body == null) return;
+        // ตั้งตรงแทน MoveRotation ให้ transform.forward เปลี่ยนทันที (ท่าโจมตีเริ่มหันถูกทาง)
+        _body.rotation = Quaternion.LookRotation(direction);
+    }
 
     // Singleton: player มีได้ตัวเดียวในฉาก ตัวที่เกินมาจะถูกลบทิ้ง
     public static PlayerMovement Instance { get; private set; }
@@ -390,7 +432,7 @@ public class PlayerMovement : MonoBehaviour
         if (_dashRequested)
         {
             _dashRequested = false;
-            TryStartDash(move);
+            if (!_actionLocked && !DashBlocked) TryStartDash(move);
         }
 
         if (IsDashing)
@@ -403,7 +445,7 @@ public class PlayerMovement : MonoBehaviour
         }
 
         Vector3 velocity = _body.linearVelocity;
-        Vector3 desired = move * (moveSpeed * (_sprint ? sprintMultiplier : 1f));
+        Vector3 desired = move * (moveSpeed * (_sprint ? sprintMultiplier : 1f) * ActionSpeedMultiplier);
         bool onGround = IsGrounded && !_jumpedSinceGrounded;
 
         if (onGround)
@@ -433,9 +475,9 @@ public class PlayerMovement : MonoBehaviour
 
         bool groundJump = inCoyote && _jumpsUsed == 0;
         bool airJump = !groundJump && _jumpsUsed < maxJumps;
-        bool pressed = Time.time - _lastJumpPressedTime <= jumpBufferTime;
+        bool pressed = !_actionLocked && Time.time - _lastJumpPressedTime <= jumpBufferTime;
         // กดค้าง: ถึงพื้นเมื่อไหร่กระโดดต่อเอง (เฉพาะจากพื้น กดค้างไม่ใช้ครั้งกลางอากาศ)
-        bool held = holdToAutoJump && _jumpHeld && groundJump;
+        bool held = !_actionLocked && holdToAutoJump && _jumpHeld && groundJump;
 
         if ((groundJump || airJump) && (pressed || held))
         {
@@ -462,7 +504,7 @@ public class PlayerMovement : MonoBehaviour
             _body.AddForce(Physics.gravity * (fallGravityMultiplier - 1f), ForceMode.Acceleration);
         }
 
-        if (move.sqrMagnitude > 0.0001f)
+        if (move.sqrMagnitude > 0.0001f && !_actionLocked)
         {
             Quaternion targetRot = Quaternion.LookRotation(move);
             _body.MoveRotation(Quaternion.Slerp(_body.rotation, targetRot, rotationSpeed * Time.fixedDeltaTime));

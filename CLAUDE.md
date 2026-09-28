@@ -39,5 +39,17 @@ ARPG แนว Path of Exile (hideout + procedural map) — Unity 6000.6, URP, I
 - `Assets/Resources/Scripts/Player/`, `Camera/` — ยังเป็นแบบ single-player (ดูกฎข้อ 3–4)
   - local player เป็นตัวเดียวอยู่ข้าม scene (`PlayerMovement.persistAcrossScenes` → DontDestroyOnLoad) `PlayerSpawner` ของ scene ใหม่ย้ายตัวเดิมมาวาง ไม่สร้างใหม่
   - ของที่ player ถือข้าม scene ต้องผูกกับ scene ใหม่ใน `sceneLoaded` และระวังของ scene เก่าที่ยังไม่ unload ตอน Awake (เช่น `ProceduralMapGenerator.Instance`)
-  - `PlayerAnimator` / `DashAfterimage` = presentation อย่างเดียว อ่านสถานะจาก `PlayerMovement`
+  - `CharacterAnimator` (ใช้ร่วม player/ศัตรู อ่าน `ICharacterLocomotion` + `MeleeAttack` + `Health`) / `DashAfterimage` / `CharacterAppearance` = presentation อย่างเดียว
+  - `PlayerAttackInput` = ตัวรับ input โจมตี (InputAction rebind ได้) -> `PlayerCombat.RequestAttack` (validate ฝั่ง server)
+- `Assets/Resources/Scripts/Combat/` — `Health` (HP/ทีม, `Health.All` ใช้หาเป้าแทน `PlayerMovement.Instance`), `MeleeAttack` (hitbox หลายอัน จังหวะเป็นสัดส่วนของท่า ไม่พึ่ง animation event / channel = กดค้างวนช่วง loopStart-loopEnd / Animator state Attack ใช้ Motion Time = `AttackTime` จาก simulation)
+- `Assets/Resources/Scripts/Skills/` — gem แบบ PoE: `ActiveSkillGem` (ข้อมูลท่า + animation) / `SupportGem` (StatModifier: Flat / Increased% / More%) / `ResolvedSkill` (รวมค่าสุดท้าย) asset อยู่ `Gameobject/ScriptAbleObject/Skills/`
+  - player: `PlayerSkills.slots` หลาย slot (แต่ละ slot = active 1 + support 5 ช่องของตัวเอง) ปุ่มต่อ slot อยู่ `PlayerAttackInput.slotBindings` (index ตรงกัน) -> `PlayerCombat.RequestAttack(slot, aim, held)` -> `MeleeAttack.TryAttack(ResolvedSkill, ...)` cooldown แยกต่อสกิล
+  - ศัตรูใช้ `MeleeAttack.defaultSkill` + `AddModifier` (elite)
+- `Player/PlayerStats` — stat sheet ที่เดียวของ player: ค่าฐาน (Max HP / Movement Speed / Attack Speed) + `AddModifier(source, mod)` / `RemoveModifiers(source)` -> push ไป Health, PlayerMovement.moveSpeed, PlayerSkills (Attack Speed = ฐานของทุกสกิล ท่า/hitbox/animation scale ตาม)
+  - ค่าตัวละครห้ามแก้ตรงที่ Health.maxHealth / PlayerMovement.moveSpeed (sheet เขียนทับ) ให้แก้ที่ PlayerStats
+  - `CharacterAnimator` สลับ clip ช่อง `attackSlotClip` เป็นท่าของสกิลผ่าน runtime AnimatorOverrideController
+- `UI/DamageNumbers` — เลขดาเมจ (ฟัง `Health.AnyDamaged` pool BillboardText) ห้ามใช้ `TMP.alpha` กับ material BillboardText (หน้าตัวอักษรโปร่ง) ใช้ color.a แทน
+- `Assets/Resources/Scripts/Enemy/` — `EnemyMotor` (Rigidbody + `JumpTo` วิถีโค้ง), `EnemyAI` (Idle/Wander → Suspicious → Chase → Dead), `EnemySpawner` (เกิดเป็น pack + elite สุ่มจาก seed), `EnemyPack` (เดินเล่นรอบจุดกลาง/เรียกเพื่อนรุม), `EnemyRank` (elite: ขนาด/HP/ดาเมจ) + `EliteGlow` (presentation)
+- `ProceduralMap/Navigation/MapNavGraph` — grid graph ของ AI สร้างจาก TerraceLayout ทุกครั้งที่ generate (edge Walk / JumpUp / JumpDown) อ้างผ่าน `generator.NavGraph` ดูกราฟด้วย `MapNavGraphGizmos`
+- Animator: `PlayerController` (state Attack/Death, param Attack/AttackSpeed/Dead) ศัตรูใช้ `EnemyController.overrideController` (สลับท่าโจมตีเป็น Boxing)
 - Scenes: `Hideout`, `CreatedMap` (ไฟล์ scene เก็บผ่าน Git LFS)

@@ -153,6 +153,22 @@ public class ProceduralMapConfig : ScriptableObject
     [Tooltip("หลัง combine ให้ปิด Collider ของ object ต้นฉบับไปด้วย (ปิดถ้า object เหล่านั้นไม่ต้องชนกับอะไรเลย ลด physics overhead เพิ่มอีกชั้น)")]
     public bool disableCollidersAfterCombine = false;
 
+    [Header("Navigation (กราฟเดินของ AI)")]
+    [Tooltip("สร้างกราฟ MapNavGraph ให้ AI หาเส้นทางหลัง generate (ดูกราฟได้ด้วย component Map Nav Graph Gizmos)")]
+    public bool buildNavGraph = true;
+    [Tooltip("จำนวน node ต่อด้านต่อ 1 cell (2 = node ห่างกัน stepSize/2) ยิ่งมากยิ่งอ้อมต้นไม้/บ่อได้ละเอียด แต่ใช้ memory/เวลาหาเส้นทางมากขึ้นกำลังสอง")]
+    [Range(1, 4)] public int navNodesPerCell = 2;
+    [Tooltip("หน้าผาสูงไม่เกินนี้ใส่ edge กระโดดขึ้น (ศัตรูแต่ละตัวยังกรองตามแรงกระโดดของตัวเองอีกชั้น) ค่าเริ่มต้นพอสำหรับ 1 ชั้น terrace")]
+    [Min(0f)] public float navMaxJumpUp = 1.6f;
+    [Tooltip("หน้าผาลึกไม่เกินนี้ใส่ edge กระโดดลง")]
+    [Min(0f)] public float navMaxJumpDown = 3.2f;
+    [Tooltip("ตัวคูณ cost ตอนลุยน้ำ (AI เลี่ยงบ่อถ้าอ้อมไม่ไกล)")]
+    [Min(1f)] public float navWaterCost = 3f;
+    [Tooltip("cost เพิ่มต่อการกระโดด 1 ครั้ง (หน่วยเท่าระยะเดิน) ให้เลือกทางลาดก่อนถ้าอ้อมไม่เกินเท่านี้")]
+    [Min(0f)] public float navJumpCost = 3f;
+    [Tooltip("ขยายขอบสิ่งกีดขวาง (collider ของ object ที่ scatter) เท่านี้ตอนตัด node ทิ้ง ≈ รัศมีตัวศัตรู")]
+    [Min(0f)] public float navObstaclePadding = 0.3f;
+
 #if UNITY_EDITOR
     // ให้ generator ที่ใช้ asset นี้ generate ใหม่ตอนแก้ค่าใน Inspector
     public static event System.Action<ProceduralMapConfig> Changed;
