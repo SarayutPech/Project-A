@@ -35,6 +35,12 @@ public class MeleeAttack : MonoBehaviour
     [Min(1)] public int defaultSkillLevel = 1;
     public LayerMask hitMask = ~0;
 
+    [Header("Teleport (Flicker Strike)")]
+    [Tooltip("layer ของพื้น/กำแพงที่ใช้หาจุดลงวาร์ป (ตัวละครถูกข้ามเอง)")]
+    public LayerMask teleportGroundMask = ~0;
+    [Tooltip("จุดลงต้องสูงต่างจากพื้นใต้เป้าไม่เกินนี้ (world unit) กันลงชั้นอื่นข้างหน้าผา / นอกแผนที่ / ในกำแพง")]
+    [Min(0.05f)] public float teleportMaxStep = 0.5f;
+
     // ค่าสุดท้ายของสกิลปัจจุบัน (null = ไม่มีสกิล ตีไม่ได้)
     public ResolvedSkill Skill
     {
@@ -167,17 +173,18 @@ public class MeleeAttack : MonoBehaviour
 
         // สกิลวาร์ป: ต้องมีเป้าในระยะ ไม่งั้นใช้ไม่ได้ (เช็คก่อนเริ่มท่า)
         Health target = null;
+        Vector3 teleportLand = default;
         if (skill.TeleportToTarget)
         {
             if (_mover == null) return false;
-            target = FindTeleportTarget(skill, AimPointOr(aimDirection, skill));
+            target = FindTeleportTarget(skill, AimPointOr(aimDirection, skill), out teleportLand);
             if (target == null) return false;
         }
 
         _active = skill;
         PickPresentation(skill);
         AimDirection = aimDirection;
-        if (target != null) TeleportNextTo(target);
+        if (target != null) TeleportNextTo(target, teleportLand);
         CurrentDuration = _active.ScaledDuration;
         IsAttacking = true;
         _t = 0f;
@@ -254,17 +261,17 @@ public class MeleeAttack : MonoBehaviour
     private Vector3 AimPointOr(Vector3 aimDirection, ResolvedSkill skill) =>
         _aimPoint ?? transform.position + aimDirection * (skill.TeleportRange * 0.5f);
 
-    // เป้าวาร์ป: ศัตรูที่ยังไม่ตายในระยะจากตัว
+    // เป้าวาร์ป: ศัตรูที่ยังไม่ตายในระยะจากตัว และมีจุดลงข้างตัวที่ยืนได้จริง (land = ตำแหน่งเท้าตอนลง)
     // Avoid Same Target: เลือกตัวที่วาร์ปไปหาครั้งล่าสุดนานที่สุดก่อน (ไม่เคย = ก่อนสุด) -> กดค้างแล้ววนไปทั่วทั้งกลุ่ม
-    // เสมอกัน / ปิด avoid = ตัวที่ใกล้จุดเล็งที่สุด
+    // เสมอกัน / ปิด avoid = ตัวที่ใกล้จุดเล็งที่สุด / ตัวที่หาจุดลงไม่ได้ (ลอย ตกใต้แผนที่ ติดกำแพง) ข้ามไปตัวถัดไป
     // ตัดสินฝั่ง server เอง จุดเล็งจาก client เป็นแค่ตัวช่วยเลือก ระยะจำกัดด้วยค่าของ gem (กฎข้อ 8)
-    private Health FindTeleportTarget(ResolvedSkill skill, Vector3 aimPoint)
+    private Health FindTeleportTarget(ResolvedSkill skill, Vector3 aimPoint, out Vector3 land)
     {
-        Health best = null;
-        float bestLast = float.PositiveInfinity, bestDist = float.PositiveInfinity;
+        land = default;
         float range = skill.TeleportRange * Scale;
         Vector3 origin = transform.position;
 
+        _teleportCandidates.Clear();
         foreach (var h in Health.All)
         {
             if (h == null || h == _owner || h.IsDead || !h.isActiveAndEnabled) continue;
@@ -273,16 +280,90 @@ public class MeleeAttack : MonoBehaviour
             if (FlatDistance(origin, p) > range || Mathf.Abs(p.y - origin.y) > range) continue;
 
             float last = skill.AvoidSameTarget && _flickedAt.TryGetValue(h, out float at) ? at : float.NegativeInfinity;
-            float dist = FlatDistance(aimPoint, p);
-            if (last < bestLast || (last == bestLast && dist < bestDist))
-            {
-                bestLast = last;
-                bestDist = dist;
-                best = h;
-            }
+            _teleportCandidates.Add((h, last, FlatDistance(aimPoint, p)));
         }
-        return best;
+
+        _teleportCandidates.Sort((x, y) => x.last != y.last ? x.last.CompareTo(y.last) : x.dist.CompareTo(y.dist));
+        foreach (var c in _teleportCandidates)
+            if (TryFindLanding(c.health, skill, out land)) return c.health;
+        return null;
     }
+
+    private readonly List<(Health health, float last, float dist)> _teleportCandidates = new List<(Health, float, float)>();
+    private readonly RaycastHit[] _groundHits = new RaycastHit[16];
+
+    // ทิศที่ลองวางจุดลงรอบเป้า (องศาเทียบฝั่งที่หันเข้าหาจากจุดเดิม) ฝั่งเดิมก่อน แล้วค่อยๆ อ้อมไปด้านหลัง
+    private static readonly float[] LandingAngles = { 0f, 45f, -45f, 90f, -90f, 135f, -135f, 180f };
+
+    // หาจุดลงข้างเป้าที่มีพื้นระดับเดียวกับพื้นใต้เป้า และตัวเราไม่ทับกำแพง/หน้าผา
+    // (เดิมวางที่ระดับเท้าเป้าตรงๆ -> เป้ายืนชิดหน้าผา จุดลงไปอยู่ใต้ผิวชั้นบน/นอกแผนที่ แล้วตกทะลุ)
+    private bool TryFindLanding(Health target, ResolvedSkill skill, out Vector3 land)
+    {
+        land = default;
+        PhysicsScene physics = gameObject.scene.GetPhysicsScene();
+        Vector3 to = target.transform.position;
+        var targetCol = target.GetComponent<Collider>();
+        float targetFoot = targetCol != null && targetCol.enabled ? targetCol.bounds.min.y : to.y;
+
+        // พื้นใต้เป้า: ไม่มี = เป้าลอยสูง/ตกใต้แผนที่ ไปหาไม่ได้
+        if (!TryGroundAt(physics, new Vector3(to.x, targetFoot + 0.5f, to.z), 3f, out float groundY)) return false;
+
+        Vector3 dir = to - transform.position;
+        dir.y = 0f;
+        dir = dir.sqrMagnitude > 0.0001f ? dir.normalized : FlatForward();
+        float gap = RadiusOf(target) + RadiusOf(_owner) + skill.TeleportLandingGap;
+
+        // ยิงลงจากสูงพอจะชนหลังที่ราบชั้นที่สูงกว่า (จะได้รู้ว่าเป็นชั้นอื่น ไม่ใช่ลงไปจมใต้ผิว)
+        const float probeUp = 3f;
+        foreach (float angle in LandingAngles)
+        {
+            Vector3 p = to - Quaternion.AngleAxis(angle, Vector3.up) * dir * gap;
+            if (!TryGroundAt(physics, new Vector3(p.x, groundY + probeUp, p.z), probeUp + teleportMaxStep, out float y)) continue;
+            if (Mathf.Abs(y - groundY) > teleportMaxStep) continue;
+
+            p.y = y;
+            if (!HasClearance(physics, p)) continue;
+            land = p;
+            return true;
+        }
+        return false;
+    }
+
+    // ผิวพื้นแรกใต้ origin (ข้ามตัวละคร/trigger และผิวที่ชันเกินยืน)
+    private bool TryGroundAt(PhysicsScene physics, Vector3 origin, float distance, out float y)
+    {
+        y = 0f;
+        int count = physics.Raycast(origin, Vector3.down, _groundHits, distance, teleportGroundMask, QueryTriggerInteraction.Ignore);
+        int nearest = -1;
+        for (int i = 0; i < count; i++)
+        {
+            if (IsCharacter(_groundHits[i].collider)) continue;
+            if (nearest < 0 || _groundHits[i].distance < _groundHits[nearest].distance) nearest = i;
+        }
+        // ผิวแรกที่ชนชันเกินยืน (ผนัง/ขอบหน้าผา) = ใช้ไม่ได้
+        if (nearest < 0 || _groundHits[nearest].normal.y < 0.6f) return false;
+        y = _groundHits[nearest].point.y;
+        return true;
+    }
+
+    // capsule ของตัวเราวางที่เท้า foot แล้วไม่ทับอะไรที่ไม่ใช่ตัวละคร (ยกขึ้นจากพื้นนิดนึง พื้นที่ยืนไม่นับ)
+    private bool HasClearance(PhysicsScene physics, Vector3 foot)
+    {
+        float radius = RadiusOf(_owner) * 0.9f;
+        float height = 1.8f;
+        var cap = _owner != null ? _owner.GetComponent<CapsuleCollider>() : null;
+        if (cap != null) height = cap.height * Mathf.Abs(_owner.transform.lossyScale.y);
+        height = Mathf.Max(height, radius * 2f + 0.1f);
+
+        Vector3 bottom = foot + Vector3.up * (radius + 0.1f);
+        Vector3 top = foot + Vector3.up * (height - radius);
+        int count = physics.OverlapCapsule(bottom, top, radius, _overlap, teleportGroundMask, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < count; i++)
+            if (!IsCharacter(_overlap[i])) return false;
+        return true;
+    }
+
+    private static bool IsCharacter(Collider col) => col.GetComponentInParent<Health>() != null;
 
     // เวลา (sim) ที่วาร์ปไปหาแต่ละตัวครั้งล่าสุด
     private readonly Dictionary<Health, float> _flickedAt = new Dictionary<Health, float>();
@@ -298,19 +379,13 @@ public class MeleeAttack : MonoBehaviour
         foreach (var h in _staleFlicks) _flickedAt.Remove(h);
     }
 
-    // วาร์ปไปยืนข้างเป้า (ฝั่งที่หันเข้าหาจากจุดเดิม) ระดับเท้าเดียวกับเป้า แล้วหันหาเป้า
-    private void TeleportNextTo(Health target)
+    // วาร์ปไปยืนที่ land (จาก TryFindLanding) แล้วหันหาเป้า
+    private void TeleportNextTo(Health target, Vector3 land)
     {
         Vector3 from = transform.position;
-        Vector3 to = target.transform.position;
-        Vector3 dir = to - from;
+        Vector3 dir = target.transform.position - land;
         dir.y = 0f;
         dir = dir.sqrMagnitude > 0.0001f ? dir.normalized : FlatForward();
-
-        float gap = RadiusOf(target) + RadiusOf(_owner) + _active.TeleportLandingGap;
-        Vector3 land = to - dir * gap;
-        var targetCol = target.GetComponent<Collider>();
-        land.y = targetCol != null && targetCol.enabled ? targetCol.bounds.min.y : to.y;
 
         Teleporting?.Invoke(this, from, land);
         _mover.SkillTeleport(land, dir);
@@ -376,8 +451,9 @@ public class MeleeAttack : MonoBehaviour
             // สกิลวาร์ป: ทุกรอบวาร์ปไปตัวถัดไป ไม่มีเป้าเหลือ = เลิกวน เล่นท่าจบ
             if (_active.TeleportToTarget)
             {
-                Health next = _mover != null ? FindTeleportTarget(_active, AimPointOr(AimDirection, _active)) : null;
-                if (next != null) TeleportNextTo(next);
+                Vector3 land = default;
+                Health next = _mover != null ? FindTeleportTarget(_active, AimPointOr(AimDirection, _active), out land) : null;
+                if (next != null) TeleportNextTo(next, land);
                 else _held = false;
             }
         }
