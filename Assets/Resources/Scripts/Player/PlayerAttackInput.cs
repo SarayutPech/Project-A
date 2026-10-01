@@ -68,6 +68,12 @@ public class PlayerAttackInput : MonoBehaviour
         return slotBindings[button].action.GetBindingDisplayString(0, InputBinding.DisplayStringOptions.DontIncludeInteractions);
     }
 
+    // ชื่อปุ่มสลับชุดสกิล (เช่น "Ctrl") ตาม binding ปัจจุบัน
+    public string AlternateKeyLabel =>
+        alternateSetAction != null && alternateSetAction.bindings.Count > 0
+            ? alternateSetAction.GetBindingDisplayString(0, InputBinding.DisplayStringOptions.DontIncludeInteractions)
+            : "";
+
     private void Reset() => slotBindings = DefaultBindings();
 
     private void Awake()
@@ -80,18 +86,34 @@ public class PlayerAttackInput : MonoBehaviour
 
     private void OnEnable()
     {
-        foreach (var b in slotBindings) b.action?.Enable();
+        foreach (var b in slotBindings)
+        {
+            b.action?.Enable();
+            KeyBindings.Register(KeyBindings.Skills, b.action);
+        }
         alternateSetAction?.Enable();
+        KeyBindings.Register(KeyBindings.Skills, alternateSetAction);
     }
 
     private void OnDisable()
     {
-        foreach (var b in slotBindings) b.action?.Disable();
+        foreach (var b in slotBindings)
+        {
+            KeyBindings.Unregister(b.action);
+            b.action?.Disable();
+        }
+        KeyBindings.Unregister(alternateSetAction);
         alternateSetAction?.Disable();
     }
 
     private void Update()
     {
+        if (LocalInputGate.GameplayBlocked)
+        {
+            // pause กลางท่า channel = เหมือนปล่อยปุ่ม
+            if (_combat.Attack.IsAttacking) _combat.UpdateHeld(false, transform.forward, null);
+            return;
+        }
         Camera cam = aimCamera != null ? aimCamera : Camera.main;
 
         // ระหว่างท่า: ส่งแค่ว่าปุ่มของ slot ที่กำลังใช้ยังกดค้างไหม + ทิศ (ท่า channel วนต่อ/หยุดตามนี้)

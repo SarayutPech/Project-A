@@ -131,10 +131,12 @@ public class LootStashWindow : UIWindow<LootStashWindow>
     {
         var inv = LocalInventory();
         if (inv == null || _stash == null || string.IsNullOrEmpty(itemId)) return;
-        foreach (var drop in _stash.GetPending(_ownerId))
+        // เก็บตัวที่ดรอปหลังสุดของชนิดนั้น: ตัวแรกยังอยู่ -> ลำดับแถว (เรียงตามที่ดรอปครั้งแรก) ไม่สลับ
+        var pending = _stash.GetPending(_ownerId);
+        for (int i = pending.Count - 1; i >= 0; i--)
         {
-            if (drop.item.itemId != itemId) continue;
-            if (!inv.RequestClaim(_stash, drop.dropId)) UIToast.Show("Bag is full (weight)");
+            if (pending[i].item.itemId != itemId) continue;
+            if (!inv.RequestClaim(_stash, pending[i].dropId)) UIToast.Show("Bag is full (weight)");
             return;
         }
     }

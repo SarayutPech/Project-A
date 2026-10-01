@@ -11,7 +11,8 @@ using UnityEngine.UI;
 //   - หลอด (Fill / Trail) ต้องเป็น Image Type = Filled + มี sprite ถึงจะลดแบบ fillAmount (ไม่มี sprite = ยืดตามสัดส่วน)
 //   - cooldown ของช่องสกิล = Filled / Radial 360
 // รันซ้ำ = เขียนทับ prefab เดิม (มีถามก่อน) -> แก้ prefab แล้วอย่ารันซ้ำ
-public static class GameUITemplateBuilder
+// หน้าเลือก/สร้างตัวละคร (prefab + scene แยก) อยู่ที่ GameUITemplateBuilder.CharacterSelect.cs
+public static partial class GameUITemplateBuilder
 {
     private const string Folder = "Assets/Resources/Gameobject/Prefab/UI";
     private const string PrefabPath = Folder + "/GameUI.prefab";
@@ -35,7 +36,7 @@ public static class GameUITemplateBuilder
         Build();
     }
 
-    // เพิ่ม component ที่ HUD/กระเป๋าต้องใช้ลง Player.prefab (มีแล้วข้าม) + ช่องสกิลครบ 10 + ย้าย dash ออกจาก Ctrl
+    // เพิ่ม component ที่ HUD/กระเป๋าต้องใช้ลง Player.prefab (มีแล้วข้าม) + ช่องสกิลครบ 10
     [MenuItem("Tools/Project-A/Setup Player Prefab For UI")]
     public static void SetupPlayerPrefab()
     {
@@ -55,10 +56,6 @@ public static class GameUITemplateBuilder
                 while (skills.slots.Count < PlayerSkills.MaxSkillSlots)
                     skills.slots.Add(new SkillSlot { name = $"Skill {skills.slots.Count + 1}" });
 
-            var movement = root.GetComponent<PlayerMovement>();
-            if (movement != null && movement.dashKey == UnityEngine.InputSystem.Key.LeftCtrl)
-                movement.dashKey = UnityEngine.InputSystem.Key.LeftAlt;
-
             PrefabUtility.SaveAsPrefabAsset(root, path);
             Debug.Log($"[{nameof(GameUITemplateBuilder)}] ตั้งค่า {path} แล้ว");
         }
@@ -73,12 +70,17 @@ public static class GameUITemplateBuilder
         }
     }
 
-    public static GameObject Build()
+    private static void LoadSprites()
     {
         _uiSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
         _background = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Background.psd");
         _knob = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
         Directory.CreateDirectory(Folder);
+    }
+
+    public static GameObject Build()
+    {
+        LoadSprites();
 
         var root = new GameObject("GameUI", typeof(RectTransform));
         try
@@ -101,6 +103,8 @@ public static class GameUITemplateBuilder
             BuildMinimap(root.transform);
             BuildPassiveTreeWindow(root.transform);
             BuildLootStashWindow(root.transform);
+            BuildPauseMenu(root.transform);
+            BuildKeybindWindow(root.transform);
             BuildToast(root.transform);
             BuildConfirmDialog(root.transform);
             BuildTooltip(root.transform);
@@ -109,7 +113,7 @@ public static class GameUITemplateBuilder
             foreach (var s in root.GetComponentsInChildren<Selectable>(true)) s.navigation = new Navigation { mode = Navigation.Mode.None };
 
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
-            ExportArtList(prefab);
+            ExportArtList();
             Debug.Log($"[{nameof(GameUITemplateBuilder)}] สร้าง {PrefabPath} แล้ว", prefab);
             return prefab;
         }
@@ -893,29 +897,50 @@ public static class GameUITemplateBuilder
     [MenuItem("Tools/Project-A/Export UI Art List")]
     public static void ExportArtMenu()
     {
-        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
-        if (prefab == null)
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null && AssetDatabase.LoadAssetAtPath<GameObject>(CharacterSelectPrefabPath) == null)
         {
-            EditorUtility.DisplayDialog("Export UI Art", "ยังไม่มี GameUI prefab (Build UI Template ก่อน)", "OK");
+            EditorUtility.DisplayDialog("Export UI Art", "ยังไม่มี UI prefab (Build UI Template / Build Character Select UI ก่อน)", "OK");
             return;
         }
-        string path = ExportArtList(prefab);
+        string path = ExportArtList();
         EditorUtility.RevealInFinder(path);
     }
 
+    // prefab UI ที่ export (GameUI = โฟลเดอร์ละหน้าต่างที่ root แบบเดิม / ตัวอื่น = ArtExport/UI/<prefab>/<หน้าต่าง>)
+    private static string[] ArtExportPrefabs => new[] { PrefabPath, CharacterSelectPrefabPath };
+
     // เขียน ArtExport/UI/UI-Art-List.md (ทุก Image/RawImage: หน้าต่าง / path / ขนาด px ที่ 1920x1080 / ชนิด) + PNG เปล่าตามขนาดจริงแยกโฟลเดอร์ตามหน้าต่าง
-    // (ไอเทม/สกิล/passive node ใช้รูปจาก asset ของตัวเอง ไม่อยู่ในรายการนี้)
-    public static string ExportArtList(GameObject prefab)
+    // (ไอเทม/สกิล/passive node ใช้รูปจาก asset ของตัวเอง ไม่อยู่ในรายการนี้ / รูป race อยู่หัวข้อ Races)
+    public static string ExportArtList()
     {
         string root = Path.GetFullPath(Path.Combine(Application.dataPath, "..", ArtExportFolder));
         if (Directory.Exists(root)) Directory.Delete(root, true);
         Directory.CreateDirectory(root);
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("# UI Art List (GameUI.prefab)");
+        sb.AppendLine("# UI Art List");
         sb.AppendLine();
         sb.AppendLine("ขนาดเป็น px ที่ความละเอียดอ้างอิง 1920x1080 / Sliced = ทำเป็น 9-slice (ตั้ง Border ใน Sprite Editor) / Filled = หลอด/วง cooldown (ต้องมี sprite) / Template = ต้นแบบที่ถูก clone ตอนเล่น");
         sb.AppendLine("PNG ในโฟลเดอร์แต่ละหน้าต่าง = กรอบเปล่าขนาดจริง ใช้เป็นพื้นวาด แล้วลากรูปใส่ Source Image ของ object ตาม path");
+        foreach (string prefabPath in ArtExportPrefabs)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (prefab == null) continue;
+            sb.AppendLine();
+            sb.AppendLine($"# {prefab.name}.prefab");
+            string prefabDir = prefabPath == PrefabPath ? root : Path.Combine(root, prefab.name);
+            ExportPrefabArt(prefab, prefabDir, sb);
+        }
+        ExportRaceArt(root, sb);
+
+        string md = Path.Combine(root, "UI-Art-List.md");
+        File.WriteAllText(md, sb.ToString());
+        Debug.Log($"[{nameof(GameUITemplateBuilder)}] export art list -> {root}");
+        return md;
+    }
+
+    private static void ExportPrefabArt(GameObject prefab, string prefabDir, System.Text.StringBuilder sb)
+    {
         var rootRect = (RectTransform)prefab.transform;
         foreach (Transform window in prefab.transform)
         {
@@ -924,7 +949,7 @@ public static class GameUITemplateBuilder
             sb.AppendLine();
             sb.AppendLine("| Path | Size (px) | Type | Color | Note |");
             sb.AppendLine("|---|---|---|---|---|");
-            string dir = Path.Combine(root, window.name);
+            string dir = Path.Combine(prefabDir, window.name);
             Directory.CreateDirectory(dir);
             foreach (var g in window.GetComponentsInChildren<Graphic>(true))
             {
@@ -938,10 +963,6 @@ public static class GameUITemplateBuilder
                 if (g is Image && size.x >= 2f && size.y >= 2f) WritePlaceholder(Path.Combine(dir, $"{rel.Replace('/', '_')}_{Mathf.RoundToInt(size.x)}x{Mathf.RoundToInt(size.y)}.png"), size);
             }
         }
-        string md = Path.Combine(root, "UI-Art-List.md");
-        File.WriteAllText(md, sb.ToString());
-        Debug.Log($"[{nameof(GameUITemplateBuilder)}] export art list -> {root}");
-        return md;
     }
 
     // ขนาดตอน layout จริงโดยประมาณ: root = 1920x1080, ลูก = ขนาดพ่อ × (anchorMax - anchorMin) + sizeDelta (แถวใน layout ใช้ LayoutElement)

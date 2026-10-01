@@ -22,7 +22,7 @@ Path of Exile-style ARPG (hideout + procedural maps). Unity 6000.6, URP, new Inp
 |---|---|---|
 | `ProceduralMap/` | `ProceduralMapGenerator` (partial class, files `ProceduralMapGenerator*.cs`), `ProceduralMapConfig` SO, `TerraceLayout`, `Navigation/MapNavGraph` | [Docs/Map-Enemies.md](Docs/Map-Enemies.md) |
 | `Enemy/` | `EnemyMotor`, `EnemyAI`, `EnemySpawner`, `EnemyPack`, `EnemyRank` | [Docs/Map-Enemies.md](Docs/Map-Enemies.md) |
-| `Player/`, `Camera/`, `SceneFlow/` | movement, stats, input, spawner, camera, scene transitions, `ClickInteractable` | [Docs/Player-Scenes.md](Docs/Player-Scenes.md) |
+| `Player/`, `Camera/`, `SceneFlow/`, `CharacterSelect/` | movement, stats, input, spawner, camera, scene transitions, `ClickInteractable`, character select/create + races | [Docs/Player-Scenes.md](Docs/Player-Scenes.md) |
 | `Combat/`, `Skills/`, `Character/` | `Health`, `MeleeAttack`, PoE-style gems, shared `CharacterAnimator` | [Docs/Combat-Skills.md](Docs/Combat-Skills.md) |
 | `Items/`, `UI/` | items (SO), loot tables, loot stash + hideout chest, damage numbers | [Docs/Items-Loot.md](Docs/Items-Loot.md) |
 | `Passives/` | passive skill tree (`PassiveTree` SO + editor window, `PlayerPassives`), Str/Dex/Int | [Docs/Passives.md](Docs/Passives.md) |
@@ -30,7 +30,7 @@ Path of Exile-style ARPG (hideout + procedural maps). Unity 6000.6, URP, new Inp
 **Read the matching Docs file before changing a system.** When you add or change a system, update its Docs file (keep this file short).
 
 - Assets (SO, prefabs): `Assets/Resources/Gameobject/` (`ScriptAbleObject/Skills/Active|Support`, `ScriptAbleObject/Items/`, `Prefab/`)
-- Scenes: `Hideout`, `CreatedMap` (Git LFS)
+- Scenes: `CharacterSelect` (first), `Hideout`, `CreatedMap` (Git LFS)
 - Devlogs: `Devlog/` (outside Assets on purpose — `Assets/Resources` is bundled into builds)
 
 ## Working efficiently (token budget)

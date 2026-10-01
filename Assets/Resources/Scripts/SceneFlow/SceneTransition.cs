@@ -32,7 +32,8 @@ public class SceneTransition : MonoBehaviour
     }
 
     // เรียกจากที่ไหนก็ได้ เช่น SceneTransition.Load("Hideout")
-    public static bool Load(string sceneName)
+    // beforeLoad = เรียกตอนจอดำสนิทแล้ว ก่อนโหลด (เช่นทำลาย player/UI ที่อยู่ข้าม scene ตอนกลับหน้าเลือกตัวละคร)
+    public static bool Load(string sceneName, System.Action beforeLoad = null)
     {
         if (IsTransitioning) return false;
         if (string.IsNullOrEmpty(sceneName) || !Application.CanStreamedLevelBeLoaded(sceneName))
@@ -40,7 +41,7 @@ public class SceneTransition : MonoBehaviour
             Debug.LogError($"[{nameof(SceneTransition)}] โหลด scene '{sceneName}' ไม่ได้ ตรวจว่าเพิ่มไว้ใน File > Build Profiles (Scene List) แล้ว");
             return false;
         }
-        Instance.StartCoroutine(Instance.LoadRoutine(sceneName));
+        Instance.StartCoroutine(Instance.LoadRoutine(sceneName, beforeLoad));
         return true;
     }
 
@@ -58,12 +59,17 @@ public class SceneTransition : MonoBehaviour
         }
     }
 
-    private IEnumerator LoadRoutine(string sceneName)
+    private IEnumerator LoadRoutine(string sceneName, System.Action beforeLoad)
     {
         IsTransitioning = true;
         if (PlayerMovement.Instance != null) PlayerMovement.Instance.CanMove = false;
 
         yield return Fade(1f);
+        if (beforeLoad != null)
+        {
+            beforeLoad();
+            yield return null; // ให้ Destroy ที่สั่งใน beforeLoad เกิดก่อนโหลด
+        }
 
         AsyncOperation op = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Single);
         while (!op.isDone) yield return null;

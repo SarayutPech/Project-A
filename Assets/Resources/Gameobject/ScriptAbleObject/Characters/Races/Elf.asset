@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b2664cd2b3856e4caf2f2df203ddfc2, type: 3}
+  m_Name: Elf
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterRace
+  id: elf
+  displayName: Elf
+  description: Swift and precise. Masters of the bow and the blade's edge.
+  portrait: {fileID: 0}
+  background: {fileID: 0}
+  accentColor: {r: 0.55, g: 0.9, b: 0.6, a: 1}
+  passiveStartNode: start

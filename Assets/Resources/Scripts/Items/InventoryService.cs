@@ -56,6 +56,8 @@ public interface IInventoryService
     bool Unsocket(string ownerId, int skillSlot, int socket, out ItemInstance removed);
     // สร้างข้อมูลผู้เล่นใหม่ (ว่าง) ให้ HasData เป็น true
     void EnsureCreated(string ownerId);
+    // ลบข้อมูลทั้งหมดของผู้เล่น (ตอนลบตัวละคร) ฝั่ง server เท่านั้น
+    void DeleteOwner(string ownerId);
 }
 
 // เก็บในเครื่องเป็น JSON (persistentDataPath/inventory.json) เซฟทุกครั้งที่เปลี่ยน
@@ -319,6 +321,11 @@ public class LocalInventoryService : IInventoryService
         if (HasData(ownerId)) return;
         GetOwner(ownerId, true);
         Commit(ownerId);
+    }
+
+    public void DeleteOwner(string ownerId)
+    {
+        if (_data.owners.RemoveAll(o => o.ownerId == ownerId) > 0) Commit(ownerId);
     }
 
     private void Commit(string ownerId)

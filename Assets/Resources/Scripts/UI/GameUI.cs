@@ -44,10 +44,21 @@ public class GameUI : UISingleton<GameUI>
         togglePassives.Enable();
         closeWindows.Enable();
         SceneManager.sceneLoaded += OnSceneLoaded;
+        // Esc ไม่ให้ rebind (กันผู้เล่นเปิดเมนูไม่ได้)
+        KeyBindings.Register(KeyBindings.Interface, toggleInventory, "Inventory");
+        KeyBindings.Register(KeyBindings.Interface, toggleCharacter, "Character");
+        KeyBindings.Register(KeyBindings.Interface, toggleSkillGems, "Skill Gems");
+        KeyBindings.Register(KeyBindings.Interface, togglePassives, "Passive Tree");
+        KeyBindings.Register(KeyBindings.Interface, toggleMap, "Map Overlay");
     }
 
     private void OnDisable()
     {
+        KeyBindings.Unregister(toggleInventory);
+        KeyBindings.Unregister(toggleCharacter);
+        KeyBindings.Unregister(toggleSkillGems);
+        KeyBindings.Unregister(togglePassives);
+        KeyBindings.Unregister(toggleMap);
         toggleInventory.Disable();
         toggleCharacter.Disable();
         toggleSkillGems.Disable();
@@ -82,21 +93,36 @@ public class GameUI : UISingleton<GameUI>
         // กำลังพิมพ์ในช่อง search -> ไม่ใช่ปุ่มลัด และบอก input ของเกมว่าคีย์บอร์ดถูก UI จับอยู่
         // คลิก slider/ปุ่มแล้วมันถูก "เลือก" ค้าง -> UI module เอา WASD/ลูกศรไปเลื่อนค่า/โฟกัส (บัค slider minimap)
         // เกมนี้ใช้เมาส์กับ UI อย่างเดียว: ปล่อยเมาส์แล้วยกเลิกการเลือก ยกเว้นช่องพิมพ์
+        // EventSystem ของ scene ก่อน (เช่นหน้าเลือกตัวละคร) ยังอยู่ตอน Awake แล้วถูก unload ทีหลัง -> สร้างของตัวเองแทน
+        if (EventSystem.current == null) EnsureEventSystem();
         ReleaseUiSelection();
         bool typing = IsTyping();
         LocalInputGate.KeyboardCaptured = typing;
-        if (closeWindows.WasPressedThisFrame())
+        // Esc ที่ใช้ยกเลิกการตั้งปุ่ม (หน้า Controls) ไม่นับ
+        bool rebindEsc = KeyBindings.IsRebinding || Time.frameCount - KeyBindings.LastRebindFrame <= 1;
+        if (closeWindows.WasPressedThisFrame() && !rebindEsc)
         {
             if (typing) EventSystem.current.SetSelectedGameObject(null);
-            else UIWindows.CloseAll();
+            else HandleEscape();
         }
-        if (typing) return;
+        if (typing || GamePause.IsPaused) return;
 
         if (toggleInventory.WasPressedThisFrame() && InventoryWindow.Instance != null) InventoryWindow.Instance.Toggle();
         if (toggleCharacter.WasPressedThisFrame() && CharacterWindow.Instance != null) CharacterWindow.Instance.Toggle();
         if (toggleSkillGems.WasPressedThisFrame() && SkillGemWindow.Instance != null) SkillGemWindow.Instance.Toggle();
         if (toggleMap.WasPressedThisFrame() && MinimapView.Instance != null) MinimapView.Instance.ToggleOverlay();
         if (togglePassives.WasPressedThisFrame() && PassiveTreeWindow.Instance != null) PassiveTreeWindow.Instance.Toggle();
+    }
+
+    // Esc: ปิดชั้นบนสุดก่อน -> กล่องยืนยัน > Controls > Pause (= เล่นต่อ) > หน้าต่างอื่นทั้งหมด > ไม่มีอะไรเปิด = เปิด Pause
+    private static void HandleEscape()
+    {
+        var pause = PauseMenu.Instance;
+        if (ConfirmDialog.Instance != null && ConfirmDialog.Instance.IsOpen) ConfirmDialog.Instance.Close();
+        else if (KeybindWindow.Instance != null && KeybindWindow.Instance.IsOpen) KeybindWindow.Instance.Close();
+        else if (pause != null && pause.IsOpen) pause.Close();
+        else if (UIWindows.AnyOpen) UIWindows.CloseAll();
+        else if (pause != null && !SceneTransition.IsTransitioning) pause.Open();
     }
 
     private static void ReleaseUiSelection()

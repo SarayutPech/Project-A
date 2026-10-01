@@ -636,3 +636,14 @@ MonoBehaviour:
     description: 
     icon: {fileID: 0}
     frame: {fileID: 0}
+  - id: n36
+    displayName: Starter Fighter
+    type: 0
+    isStart: 1
+    position: {x: 700, y: 460}
+    links:
+    - n35
+    modifiers: []
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}

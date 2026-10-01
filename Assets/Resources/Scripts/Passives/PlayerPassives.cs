@@ -18,6 +18,8 @@ public class PlayerPassives : MonoBehaviour
 
     public PassiveTree Tree => tree;
     public string StartNode { get; private set; }
+    // จุด start ที่ race ของตัวละครกำหนด (null = ไม่มี race เช่นเล่นตรงจาก Hideout -> เลือก start เองได้แบบเดิม)
+    public string RaceStartNode { get; private set; }
     public IReadOnlyCollection<string> Allocated => _allocated;
     public int TotalPoints => (_exp != null ? _exp.Level - 1 : 0) + bonusPoints;
     public int SpentPoints => Mathf.Max(0, _allocated.Count - (StartNode != null ? 1 : 0));
@@ -72,11 +74,11 @@ public class PlayerPassives : MonoBehaviour
         return StillConnectedWithout(id);
     }
 
-    // เลือกจุด start ได้ตอนยังไม่ได้ลงแต้มอื่น
+    // เลือกจุด start ได้ตอนยังไม่ได้ลงแต้มอื่น และ race ไม่ได้ล็อกจุด start ไว้
     public bool CanChooseStart(string id)
     {
         var node = tree != null ? tree.Get(id) : null;
-        return node != null && node.isStart && id != StartNode && SpentPoints == 0;
+        return node != null && node.isStart && id != StartNode && SpentPoints == 0 && RaceStartNode == null;
     }
 
     // ---------- คำขอจาก client ----------
@@ -131,6 +133,14 @@ public class PlayerPassives : MonoBehaviour
             _allocated.Add(id);
             if (node.isStart && StartNode == null) StartNode = id;
         }
+        // race กำหนดจุด start: เซฟที่เริ่มคนละจุด (แก้ race/tree ทีหลัง) -> เริ่มใหม่จากจุดของ race
+        RaceStartNode = ResolveRaceStart();
+        if (RaceStartNode != null && StartNode != RaceStartNode)
+        {
+            _allocated.Clear();
+            StartNode = RaceStartNode;
+            _allocated.Add(StartNode);
+        }
         if (StartNode == null)
         {
             foreach (var s in tree.StartNodes)
@@ -148,6 +158,19 @@ public class PlayerPassives : MonoBehaviour
             Apply();
             Changed?.Invoke(this);
         }
+    }
+
+    private string ResolveRaceStart()
+    {
+        if (!GameServices.Character.TryGetCharacter(OwnerId, out var info)) return null;
+        var config = CharacterCreationConfig.LoadDefault();
+        var race = config != null ? config.GetRace(info.raceId) : null;
+        if (race == null || string.IsNullOrEmpty(race.passiveStartNode)) return null;
+
+        var node = tree.Get(race.passiveStartNode);
+        if (node != null && node.isStart) return node.id;
+        Debug.LogWarning($"[{nameof(PlayerPassives)}] race '{race.Id}' ตั้งจุด start '{race.passiveStartNode}' ที่ไม่ใช่ node start ใน tree", race);
+        return null;
     }
 
     private void Commit()

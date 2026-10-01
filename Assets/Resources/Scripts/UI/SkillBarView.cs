@@ -11,8 +11,8 @@ public class SkillBarView : UISingleton<SkillBarView>, IPlayerUI
     [Tooltip("แสดงตอนอยู่ชุดที่ 2 เช่นกรอบเรืองแสง (เว้นว่างได้)")]
     public GameObject alternateSetIndicator;
     public string[] setNames = { "I", "II" };
-    [Tooltip("คำนำหน้าปุ่มตอนชุดที่ 2")]
-    public string alternatePrefix = "Ctrl+";
+    [Tooltip("คำนำหน้าปุ่มตอนชุดที่ 2 ว่าง = ชื่อปุ่ม Alternate Set ปัจจุบัน + \"+\" (ตาม rebind)")]
+    public string alternatePrefix = "";
 
     private PlayerAttackInput _input;
     private PlayerSkills _skills;
@@ -47,7 +47,7 @@ public class SkillBarView : UISingleton<SkillBarView>, IPlayerUI
             float remaining = skill != null ? _skills.Attack.CooldownRemaining(skill.Gem) : 0f;
             float total = skill != null ? skill.ScaledCooldown : 0f;
             string key = i < _input.SlotsPerSet ? _input.KeyLabel(i) : "";
-            if (set == 1 && key.Length > 0) key = alternatePrefix + key;
+            if (set == 1 && key.Length > 0) key = (string.IsNullOrEmpty(alternatePrefix) ? _input.AlternateKeyLabel + "+" : alternatePrefix) + key;
             slots[i].Set(index, skill, key, remaining, total, index == activeSlot);
         }
     }

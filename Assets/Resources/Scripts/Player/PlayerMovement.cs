@@ -3,9 +3,10 @@ using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 // เดินด้วย Rigidbody (gravity จาก physics) ทิศตามมุมกล้อง (กด W = เดินขึ้นจอ เหมาะกับกล้อง isometric)
-// ปุ่มเริ่มต้น Keyboard: WASD / ลูกศร, Space = กระโดด, Ctrl = แตะ dash / กดค้าง วิ่ง
+// ปุ่มเริ่มต้น Keyboard: WASD / ลูกศร, Space = กระโดด, Shift ซ้าย = แตะ dash / กดค้าง วิ่ง
 //             Gamepad: left stick, ปุ่มล่าง (A/Cross) = กระโดด, ปุ่มซ้าย (X/Square) = แตะ dash / กดค้าง วิ่ง
-// (ปิด Dash Sprint Same Key = แยกปุ่มแบบเดิม: Shift / left stick click = วิ่ง, Ctrl / ปุ่มซ้าย = dash ตอนกด)
+// (ปิด Dash Sprint Same Key = แยกปุ่ม: Sprint Action = วิ่ง, Dash Action = dash ตอนกด)
+// ปุ่มเป็น InputAction ลงทะเบียนกับ KeyBindings (ผู้เล่นเปลี่ยนเองได้ที่ Pause > Controls)
 // ถ้ามี ProceduralMapGenerator ในฉาก จะวาง player ที่จุด Start และล็อกไว้จน MapBuildAnimator เล่นจบ
 //
 // บ่อน้ำ/รู: ถ้า config เปิด Walkable Water จะลุยน้ำได้เหมือนพื้นปกติ (generator สร้างพื้นลาดล่องหนให้ ไม่มี trigger respawn)
@@ -56,10 +57,38 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
     [Tooltip("ต้องกดค้างนานเท่านี้ (วินาที) ถึงเริ่มวิ่ง ปล่อยก่อนนี้ = dash")]
     [Min(0.05f)] public float sprintHoldTime = 1f;
 
-    [Header("Input Keys (Keyboard)")]
-    public Key jumpKey = Key.Space;
-    public Key sprintKey = Key.LeftShift;
-    public Key dashKey = Key.LeftAlt; // Ctrl ใช้สลับชุดสกิล (PlayerAttackInput)
+    [Header("Input (ผู้เล่น rebind ได้ที่ Pause > Controls)")]
+    public InputAction moveAction = DefaultMoveAction();
+    public InputAction jumpAction = ButtonAction("Jump", "<Keyboard>/space", "<Gamepad>/buttonSouth");
+    [Tooltip("ใช้เฉพาะตอนปิด Dash Sprint Same Key")]
+    public InputAction sprintAction = ButtonAction("Sprint", "<Keyboard>/leftShift", "<Gamepad>/leftStickPress");
+    public InputAction dashAction = ButtonAction("Dash", "<Keyboard>/leftShift", "<Gamepad>/buttonWest"); // Ctrl ใช้สลับชุดสกิล (PlayerAttackInput)
+
+    private static InputAction ButtonAction(string name, params string[] paths)
+    {
+        var a = new InputAction(name, InputActionType.Button);
+        foreach (var p in paths) a.AddBinding(p);
+        return a;
+    }
+
+    // WASD + ลูกศร + left stick (KeyBindings rebind ได้เฉพาะชุด WASD)
+    private static InputAction DefaultMoveAction()
+    {
+        var a = new InputAction("Move", InputActionType.Value, expectedControlType: "Vector2");
+        a.AddCompositeBinding("2DVector").With("Up", "<Keyboard>/w").With("Down", "<Keyboard>/s").With("Left", "<Keyboard>/a").With("Right", "<Keyboard>/d");
+        a.AddCompositeBinding("2DVector").With("Up", "<Keyboard>/upArrow").With("Down", "<Keyboard>/downArrow").With("Left", "<Keyboard>/leftArrow").With("Right", "<Keyboard>/rightArrow");
+        a.AddBinding("<Gamepad>/leftStick");
+        return a;
+    }
+
+    // action ที่ยังไม่มี binding (prefab เก่า / Reset ใน Inspector) -> ใส่ปุ่มเริ่มต้น
+    private void EnsureDefaultBindings()
+    {
+        if (moveAction == null || moveAction.bindings.Count == 0) moveAction = DefaultMoveAction();
+        if (jumpAction == null || jumpAction.bindings.Count == 0) jumpAction = ButtonAction("Jump", "<Keyboard>/space", "<Gamepad>/buttonSouth");
+        if (sprintAction == null || sprintAction.bindings.Count == 0) sprintAction = ButtonAction("Sprint", "<Keyboard>/leftShift", "<Gamepad>/leftStickPress");
+        if (dashAction == null || dashAction.bindings.Count == 0) dashAction = ButtonAction("Dash", "<Keyboard>/leftShift", "<Gamepad>/buttonWest");
+    }
 
     [Header("Ground Check")]
     [Tooltip("layer ที่นับเป็นพื้น (ตัว player เองถูกข้ามให้อัตโนมัติ)")]
@@ -275,13 +304,26 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
     {
         SceneManager.sceneLoaded += OnSceneLoaded;
         SubscribeGenerator();
+        EnsureDefaultBindings();
+        foreach (var a in InputActions()) a.Enable();
+        KeyBindings.Register(KeyBindings.Movement, moveAction);
+        KeyBindings.Register(KeyBindings.Movement, jumpAction);
+        KeyBindings.Register(KeyBindings.Movement, dashAction, dashSprintSameKey ? "Dash / Sprint (hold)" : null);
+        if (!dashSprintSameKey) KeyBindings.Register(KeyBindings.Movement, sprintAction);
     }
 
     private void OnDisable()
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
         UnsubscribeGenerator();
+        foreach (var a in InputActions())
+        {
+            KeyBindings.Unregister(a);
+            a.Disable();
+        }
     }
+
+    private InputAction[] InputActions() => new[] { moveAction, jumpAction, sprintAction, dashAction };
 
     private void Start() => BindActiveScene();
 
@@ -411,6 +453,16 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
     private void Update()
     {
         if (!_canMove) return;
+
+        // pause: ไม่มี input (และไม่ให้ปล่อยปุ่ม dash ตอนกลับมาเล่นแล้วนับเป็น dash)
+        if (LocalInputGate.GameplayBlocked)
+        {
+            _moveInput = Vector2.zero;
+            _jumpHeld = false;
+            _sprint = false;
+            _dashKeyDownTime = -1f;
+            return;
+        }
 
         // อ่าน input ใน Update (ไม่พลาดปุ่มที่กดสั้นๆ) แล้วไปใช้ใน FixedUpdate
         _moveInput = ReadMoveInput();
@@ -797,51 +849,18 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
         return Vector3.ClampMagnitude(forward * input.y + right * input.x, 1f);
     }
 
-    private static Vector2 ReadMoveInput()
+    // อ่านผ่าน InputAction (rebind ได้) + LocalInputGate (พิมพ์อยู่ / pause = ไม่นับ)
+    private Vector2 ReadMoveInput()
     {
-        Vector2 value = Vector2.zero;
-
-        var keyboard = LocalInputGate.Keyboard;
-        if (keyboard != null)
-        {
-            if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) value.y += 1f;
-            if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) value.y -= 1f;
-            if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) value.x += 1f;
-            if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) value.x -= 1f;
-        }
-
-        var gamepad = Gamepad.current;
-        if (gamepad != null) value += gamepad.leftStick.ReadValue();
-
-        return Vector2.ClampMagnitude(value, 1f);
+        if (!LocalInputGate.Allows(moveAction)) return Vector2.zero;
+        return Vector2.ClampMagnitude(moveAction.ReadValue<Vector2>(), 1f);
     }
 
-    private bool IsSprinting()
-    {
-        var keyboard = LocalInputGate.Keyboard;
-        if (keyboard != null && keyboard[sprintKey].isPressed) return true;
+    private bool IsSprinting() => LocalInputGate.Held(sprintAction);
 
-        var gamepad = Gamepad.current;
-        return gamepad != null && gamepad.leftStickButton.isPressed;
-    }
+    private bool JumpHeld() => LocalInputGate.Held(jumpAction);
 
-    private bool JumpHeld()
-    {
-        var keyboard = LocalInputGate.Keyboard;
-        if (keyboard != null && keyboard[jumpKey].isPressed) return true;
-
-        var gamepad = Gamepad.current;
-        return gamepad != null && gamepad.buttonSouth.isPressed;
-    }
-
-    private bool JumpPressedThisFrame()
-    {
-        var keyboard = LocalInputGate.Keyboard;
-        if (keyboard != null && keyboard[jumpKey].wasPressedThisFrame) return true;
-
-        var gamepad = Gamepad.current;
-        return gamepad != null && gamepad.buttonSouth.wasPressedThisFrame;
-    }
+    private bool JumpPressedThisFrame() => LocalInputGate.Pressed(jumpAction);
 
     // ปุ่มเดียว: แตะ = dash ตอนปล่อย / ค้างครบ sprintHoldTime = วิ่งจนปล่อย
     private void ReadDashSprintKey()
@@ -867,23 +886,9 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
         _sprint = false;
     }
 
-    private bool DashHeld()
-    {
-        var keyboard = LocalInputGate.Keyboard;
-        if (keyboard != null && keyboard[dashKey].isPressed) return true;
+    private bool DashHeld() => LocalInputGate.Held(dashAction);
 
-        var gamepad = Gamepad.current;
-        return gamepad != null && gamepad.buttonWest.isPressed;
-    }
-
-    private bool DashPressedThisFrame()
-    {
-        var keyboard = LocalInputGate.Keyboard;
-        if (keyboard != null && keyboard[dashKey].wasPressedThisFrame) return true;
-
-        var gamepad = Gamepad.current;
-        return gamepad != null && gamepad.buttonWest.wasPressedThisFrame;
-    }
+    private bool DashPressedThisFrame() => LocalInputGate.Pressed(dashAction);
 
     private void SetVisible(bool visible)
     {

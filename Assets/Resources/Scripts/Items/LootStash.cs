@@ -130,5 +130,6 @@ public class LocalLootStash : ILootStashService
         {
             Debug.LogError($"[{nameof(LocalLootStash)}] เซฟ {_path} ไม่ได้: {e.Message}");
         }
+        LocalJson.Flush(); // WebGL: ลง IndexedDB
     }
 }

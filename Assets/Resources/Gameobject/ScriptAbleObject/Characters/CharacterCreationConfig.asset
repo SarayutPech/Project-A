@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 215b4e2b1944fbf4db8bf20e35151890, type: 3}
+  m_Name: CharacterCreationConfig
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterCreationConfig
+  maxCharacterSlots: 6
+  nameMinLength: 3
+  nameMaxLength: 20
+  races:
+  - {fileID: 11400000, guid: ce5b2d351befcdc439e4e55755ebdd29, type: 2}
+  - {fileID: 11400000, guid: 62ffa14068331294d9cc6a9f4df75a6a, type: 2}
+  - {fileID: 11400000, guid: 64cb2f0e110529a4881315f8fbe670d4, type: 2}
+  - {fileID: 11400000, guid: 388509f066c5d0a4398a79baf6971e62, type: 2}
+  - {fileID: 11400000, guid: eaf75a825615a4d4da4d9aa279fadb4b, type: 2}
+  - {fileID: 11400000, guid: be7bb3d1de79bf64593c9e4b6ba92add, type: 2}
