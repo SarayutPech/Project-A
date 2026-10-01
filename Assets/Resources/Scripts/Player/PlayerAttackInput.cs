@@ -35,7 +35,7 @@ public class PlayerAttackInput : MonoBehaviour
     public bool aimAtCursor = true;
     [Tooltip("ถ้าเว้นว่างจะใช้ Camera.main")]
     public Camera aimCamera;
-    [Tooltip("คลิกโดน UI หรือคลิกเข้า portal ที่อยู่ในระยะ ไม่นับเป็นการใช้สกิล")]
+    [Tooltip("คลิกโดน UI หรือคลิก object ที่ interact ได้ในระยะ (portal, กล่องของดรอป) ไม่นับเป็นการใช้สกิล")]
     public bool ignoreUiAndPortalClicks = true;
 
     private PlayerCombat _combat;
@@ -89,7 +89,7 @@ public class PlayerAttackInput : MonoBehaviour
             if (a == null) continue;
             bool triggered = repeat ? a.IsPressed() : a.WasPressedThisFrame();
             if (!triggered) continue;
-            if (ignoreUiAndPortalClicks && IsMouse(a) && IsClickOnUiOrPortal(cam)) continue;
+            if (ignoreUiAndPortalClicks && IsMouse(a) && IsClickOnUiOrInteractable(cam)) continue;
 
             if (_combat.RequestAttack(i, Aim(a, cam), a.IsPressed(), AimPoint(a, cam))) return true;
         }
@@ -120,11 +120,11 @@ public class PlayerAttackInput : MonoBehaviour
         return TryCursorOnGround(cam, out Vector3 point) ? point : (Vector3?)null;
     }
 
-    private bool IsClickOnUiOrPortal(Camera cam)
+    private bool IsClickOnUiOrInteractable(Camera cam)
     {
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return true;
         if (cam == null || Mouse.current == null) return false;
-        return ScenePortal.IsEnterableUnder(cam.ScreenPointToRay(Mouse.current.position.ReadValue()), cam.farClipPlane);
+        return ClickInteractable.IsInteractableUnder(cam.ScreenPointToRay(Mouse.current.position.ReadValue()), cam.farClipPlane);
     }
 
     // จุดที่เคอร์เซอร์ชี้บนระนาบแนวนอนระดับเท้า (ไม่ raycast collider -> ต้นไม้/หน้าผาไม่ทำให้ทิศเพี้ยน)

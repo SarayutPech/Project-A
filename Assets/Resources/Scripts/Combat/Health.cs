@@ -71,6 +71,15 @@ public class Health : MonoBehaviour
         Current = refill ? maxHealth : Mathf.Max(1f, maxHealth * ratio);
     }
 
+    // เติม HP (ยา/สกิลฟื้น) ตายแล้วไม่ฟื้น คืนจำนวนที่เติมได้จริง
+    public float Heal(float amount)
+    {
+        if (IsDead || amount <= 0f) return 0f;
+        float before = Current;
+        Current = Mathf.Min(maxHealth, Current + amount);
+        return Current - before;
+    }
+
     public void Revive(float fraction = 1f)
     {
         bool wasDead = IsDead;

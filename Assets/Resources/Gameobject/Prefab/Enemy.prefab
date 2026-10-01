@@ -16,6 +16,7 @@ GameObject:
   - component: {fileID: 5739135856373511624}
   - component: {fileID: 5412671795149374225}
   - component: {fileID: 6245562098877293237}
+  - component: {fileID: 3327836022564295718}
   m_Layer: 0
   m_Name: Enemy
   m_TagString: Untagged
@@ -120,6 +121,10 @@ MonoBehaviour:
   hitMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  teleportGroundMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  teleportMaxStep: 0.5
 --- !u!114 &5739135856373511624
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -187,6 +192,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a9876cfbe2a2bdc4e8e0004f4b428235, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyRank
+--- !u!114 &3327836022564295718
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8301834766826492246}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 69c839fde6bb3fd48b8b5d555077bde8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LootDropper
+  table: {fileID: 11400000, guid: 6fb6489bb490c574a9b0323053f97dd2, type: 2}
+  eliteRollMultiplier: 3
 --- !u!1001 &4230056055835582509
 PrefabInstance:
   m_ObjectHideFlags: 0

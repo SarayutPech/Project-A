@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a7dbc3edd199a74296bc756fdcf32c5, type: 3}
+  m_Name: LootTable_Common
+  m_EditorClassIdentifier: Assembly-CSharp::LootTable
+  dropChance: 0.4
+  rolls: {x: 1, y: 1}
+  entries:
+  - item: {fileID: 11400000, guid: 52f05189f58ee8a489dec3c40c124118, type: 2}
+    weight: 40
+    countRange: {x: 1, y: 2}
+  - item: {fileID: 11400000, guid: 9c778fb548b02594da0386e717f33fde, type: 2}
+    weight: 15
+    countRange: {x: 1, y: 1}
+  - item: {fileID: 11400000, guid: ca023cd74cd3f24418aee724dd6a903c, type: 2}
+    weight: 10
+    countRange: {x: 1, y: 1}
+  - item: {fileID: 11400000, guid: e5bee5a464fba0840bb2a9f6f8e7d9cb, type: 2}
+    weight: 10
+    countRange: {x: 1, y: 1}
+  - item: {fileID: 11400000, guid: d4433ec1d644f5c468cbbdc7722fb622, type: 2}
+    weight: 6
+    countRange: {x: 1, y: 1}
+  - item: {fileID: 11400000, guid: 7398f06ee0545d04ba19d530fdae2171, type: 2}
+    weight: 4
+    countRange: {x: 1, y: 1}
