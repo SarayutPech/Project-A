@@ -27,7 +27,7 @@ MonoBehaviour:
   blendWeightRange: {x: 0.25, y: 0.5}
   mirror: 1
   upperBodyOnly: 0
-  duration: 0.3
+  duration: 1.5
   attackSpeed: 3
   cooldown: 0.1
   areaOfEffect: 1
