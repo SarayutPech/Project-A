@@ -50,6 +50,14 @@ public class OcclusionOutlineController : MonoBehaviour
     [Tooltip("เวลาที่ใช้ fade กลับทึบตอนพ้น (วินาที)")]
     [Min(0f)] public float fadeInDuration = 0.4f;
 
+    [Header("Cutout (เจาะวงรอบ player)")]
+    [Tooltip("material ที่รองรับ (Shader Graph ต่อ Custom Function OcclusionCutout + เปิด Alpha Clipping ที่ material) จะไม่ถูกทำโปร่งทั้งชิ้น\nแต่เจาะวงกลมรอบ player แทน ขอบวงเป็น dither ส่วนอื่นทึบปกติ / ปิด = ใช้ fade ทั้งชิ้นแบบเดิม")]
+    public bool useCutout = true;
+    [Tooltip("รัศมีวงเจาะ (world unit วัดรอบจุดกลางตัว player)")]
+    [Min(0.1f)] public float cutoutRadius = 2.5f;
+    [Tooltip("ความกว้างขอบ dither เป็นสัดส่วนของรัศมี (0 = ขอบคม)")]
+    [Range(0f, 1f)] public float cutoutSoftness = 0.35f;
+
     [Header("Outline")]
     public bool showOutline = true;
     [Tooltip("ถ้าเว้นว่างจะสร้างจาก shader Custom/OcclusionOutline ให้อัตโนมัติ")]
@@ -64,12 +72,23 @@ public class OcclusionOutlineController : MonoBehaviour
         public Renderer[] renderers;
         public Collider[] colliders;           // มีเฉพาะ chunk พื้น: เช็คบังด้วย collider (bounds ของเนินหยาบเกิน)
         public Material[][] originalMaterials; // null = ยังใช้ material เดิมอยู่
-        public bool[][] fadeSlots;             // slot ไหนเป็น material transparent ที่ปรับ alpha ได้
+        public SlotMode[][] slotModes;         // แต่ละ slot ทำอะไรตอนบัง
         public float fade;                     // 0 = ปกติ, 1 = จางเต็มที่
         public bool occluded;
     }
 
+    private enum SlotMode
+    {
+        Outline, // เส้นขอบล้วน (แทน material ที่ fade ไม่ได้ หรือ slot เสริม)
+        Fade,    // clone transparent ปรับ alpha
+        Cutout,  // material เดิม (opaque + alpha clip) เจาะวงกลมรอบ player ผ่าน _FadeAlpha
+    }
+
     private const string OutlineShaderName = "Custom/OcclusionOutline";
+    private const string AlphaTestKeyword = "_ALPHATEST_ON";
+    private static readonly int CutCenterId = Shader.PropertyToID("_OcclusionCutCenter");
+    private static readonly int CutRadiusId = Shader.PropertyToID("_OcclusionCutRadius");
+    private static readonly int CutSoftnessId = Shader.PropertyToID("_OcclusionCutSoftness");
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int FadeAlphaId = Shader.PropertyToID("_FadeAlpha");
     private static readonly int OutlineColorId = Shader.PropertyToID("_OutlineColor");
@@ -105,6 +124,7 @@ public class OcclusionOutlineController : MonoBehaviour
     {
         if (_subscribedGenerator != null) _subscribedGenerator.MapGenerated -= RefreshOccluders;
         _subscribedGenerator = null;
+        Shader.SetGlobalVector(CutCenterId, Vector4.zero); // w = 0 ปิดการเจาะ
         RestoreAll();
     }
 
@@ -149,6 +169,7 @@ public class OcclusionOutlineController : MonoBehaviour
         Transform t = target != null ? target : (PlayerMovement.Instance != null ? PlayerMovement.Instance.transform : null);
         bool hasTarget = t != null && t.gameObject.activeInHierarchy;
         if (hasTarget) FillSamplePoints(t);
+        UpdateCutoutGlobals(hasTarget);
 
         // หาว่าชิ้นไหนบังอยู่ตอนนี้
         foreach (var occ in _occluders)
@@ -272,6 +293,29 @@ public class OcclusionOutlineController : MonoBehaviour
         return any;
     }
 
+    // ---------- Cutout ----------
+
+    // จุดกลาง/รัศมีวงเจาะ ให้ shader (OcclusionCutout.hlsl) รัศมีแปลงเป็นสัดส่วนความสูงจอ
+    private void UpdateCutoutGlobals(bool hasTarget)
+    {
+        if (!useCutout || !hasTarget)
+        {
+            Shader.SetGlobalVector(CutCenterId, Vector4.zero);
+            return;
+        }
+
+        Vector3 center = _samplePoints[1];
+        Vector3 a = _camera.WorldToViewportPoint(center);
+        Vector3 b = _camera.WorldToViewportPoint(center + transform.up * cutoutRadius);
+        Shader.SetGlobalVector(CutCenterId, new Vector4(center.x, center.y, center.z, 1f));
+        Shader.SetGlobalFloat(CutRadiusId, Mathf.Abs(b.y - a.y));
+        Shader.SetGlobalFloat(CutSoftnessId, cutoutSoftness);
+    }
+
+    // material ที่เจาะเองได้: Shader Graph ที่ต่อ OcclusionCutout (รับ _FadeAlpha) และเปิด Alpha Clipping ไว้
+    private bool SupportsCutout(Material mat) =>
+        useCutout && mat != null && mat.HasProperty(FadeAlphaId) && mat.IsKeywordEnabled(AlphaTestKeyword);
+
     // ---------- Material Swap ----------
 
     private void ApplyFadeMaterials(Occluder occ)
@@ -279,7 +323,7 @@ public class OcclusionOutlineController : MonoBehaviour
         Material outline = GetOutlineMaterial();
 
         occ.originalMaterials = new Material[occ.renderers.Length][];
-        occ.fadeSlots = new bool[occ.renderers.Length][];
+        occ.slotModes = new SlotMode[occ.renderers.Length][];
 
         for (int i = 0; i < occ.renderers.Length; i++)
         {
@@ -290,25 +334,35 @@ public class OcclusionOutlineController : MonoBehaviour
             occ.originalMaterials[i] = original;
 
             var replaced = new List<Material>(original.Length + 1);
-            var fadeSlots = new bool[original.Length];
+            var modes = new SlotMode[original.Length + 1];
             bool anyFade = false;
 
             for (int m = 0; m < original.Length; m++)
             {
+                // เจาะวงเองได้ -> ใช้ material เดิม (ทึบ) ไม่ต้องสลับเป็น transparent
+                if (SupportsCutout(original[m]))
+                {
+                    modes[m] = SlotMode.Cutout;
+                    replaced.Add(original[m]);
+                    continue;
+                }
+
                 Material clone = GetFadeClone(original[m]);
-                fadeSlots[m] = clone != null;
+                modes[m] = clone != null ? SlotMode.Fade : SlotMode.Outline;
                 anyFade |= clone != null;
                 // ทำ transparent ไม่ได้ -> เหลือแต่เส้นขอบ (ข้างในโปร่งใส)
                 replaced.Add(clone != null ? clone : outline);
             }
 
             // material เกินจำนวน submesh จะถูกวาดซ้ำบน submesh สุดท้าย ใช้เป็นเส้นขอบเพิ่มได้
+            // (slot แบบ cutout ไม่ต้องมี: เส้นดินสอวาดขอบรูให้เอง)
             if (showOutline && anyFade && outline != null)
             {
+                modes[original.Length] = SlotMode.Outline;
                 replaced.Add(outline);
             }
 
-            occ.fadeSlots[i] = fadeSlots;
+            occ.slotModes[i] = modes;
             r.sharedMaterials = replaced.ToArray();
         }
     }
@@ -324,7 +378,7 @@ public class OcclusionOutlineController : MonoBehaviour
         for (int i = 0; i < occ.renderers.Length; i++)
         {
             Renderer r = occ.renderers[i];
-            if (r == null || occ.fadeSlots[i] == null) continue;
+            if (r == null || occ.slotModes[i] == null) continue;
 
             Material[] mats = r.sharedMaterials;
             for (int m = 0; m < mats.Length; m++)
@@ -333,8 +387,12 @@ public class OcclusionOutlineController : MonoBehaviour
                 if (mat == null) continue;
 
                 _block.Clear();
-                bool isFadeSlot = m < occ.fadeSlots[i].Length && occ.fadeSlots[i][m];
-                if (isFadeSlot)
+                SlotMode mode = m < occ.slotModes[i].Length ? occ.slotModes[i][m] : SlotMode.Outline;
+                if (mode == SlotMode.Cutout)
+                {
+                    _block.SetFloat(FadeAlphaId, 1f - t); // 0 = เจาะเต็มรัศมี (วงโตตาม fade)
+                }
+                else if (mode == SlotMode.Fade)
                 {
                     if (mat.HasProperty(BaseColorId))
                     {
@@ -369,7 +427,7 @@ public class OcclusionOutlineController : MonoBehaviour
         }
 
         occ.originalMaterials = null;
-        occ.fadeSlots = null;
+        occ.slotModes = null;
         occ.fade = 0f;
     }
 
