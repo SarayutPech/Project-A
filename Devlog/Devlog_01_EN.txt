@@ -1,0 +1,177 @@
+==============================================================
+ Project-A DEVLOG #01 — From an empty patch of grass to an ARPG you can fight and loot in
+ Period: 2026-09-23 (first commit) -> 2026-10-01
+ Engine: Unity 6000.6 / URP / new Input System
+ Status: Prototype (single player, no server yet)
+==============================================================
+
+[What is this game?]
+A Path of Exile-style ARPG with an isometric camera
+- You have a Hideout as your home base; walk through a portal to warp into a map that is procedurally generated every time
+- Melee combat, with skills coming from PoE-style "gems" (active gem + support gems)
+- Pencil-sketch art style
+- Long-term goal: 2–6 player co-op party -> later scale up to dedicated servers
+
+[This period in numbers]
+- 9 days / 28 commits
+- Core systems in place: procedural maps, character + movement, camera, scene switching,
+  combat, enemy AI, gem skill system, stat sheet, items, loot drops
+
+
+==============================================================
+ Phase 1 — Project start: a procedurally generated grass field (Sep 23)
+==============================================================
+- First commit: procedural ground generator (ProceduralWanderingGround)
+  A grassy island with an underside (IslandUndersideBuilder), scattered trees/rocks, meshes combined to cut draw calls
+- Grid-style grass Shader Graph (GrassGrid)
+- Map build animation (MapBuildAnimator): the ground rises up piece by piece, configurable via a config asset
+- Isometric camera + the first walking character (PlayerMovement, PlayerSpawner)
+- Map boundary so you can't fall off the island (MapBoundaryBuilder)
+
+
+==============================================================
+ Phase 2 — Real maps + scene flow (Sep 26)
+==============================================================
+Maps
+- Map settings moved into a ScriptableObject (ProceduralMapConfig) -> one asset = one map variant
+- Terraced maps (TerraceLayout): multiple levels, ramps and cliffs
+  Generated from a seed with its own System.Random -> same seed, exact same map (crucial for multiplayer)
+- Ponds: can sit on any level, some are shallow enough to wade through
+- Spawn point / portal never land in water and sit on the real ground height
+- Terrain split into chunks per level (ground / ramps / cliffs), fixing the 2-million-triangle mesh collider warning
+- The generated map is no longer saved into the scene (it is rebuilt every time you play)
+
+Camera / visuals
+- Objects blocking the character (trees, cliffs) fade out with an outline (OcclusionOutlineController)
+- Safe respawn spot + camera tweaks
+
+Character
+- Moves along the ground plane without sticking on slopes, slides along walls, max walkable slope angle
+- Double / multi jump, hold to auto-jump
+- One button: tap = dash / hold = sprint
+
+Scene flow
+- SceneTransition: fade to black -> load scene -> fade back in
+- ScenePortal: walk into range and click to warp + portal particles
+- Split into two scenes: Hideout (home) and CreatedMap (procedural map)
+- WebGL build profile
+
+Coding rules (CLAUDE.md)
+- Decided early on to build for co-op, and for dedicated servers later
+- Core rules: gameplay logic is decided on the server, presentation is separated from logic, no code tied to
+  "the one player", maps rebuild from a seed, player data goes through interfaces, never trust client values
+
+
+==============================================================
+ Phase 3 — The character comes alive + pencil style (Sep 27)
+==============================================================
+- Character model + Humanoid animations: Idle / Walk / Run / Jump (split into 4 parts) / Dash / Roll
+- Animator state machine: walk-run blend, jump take-off / rise / fall / land, dash
+  Jumps are driven by actual button presses, not guessed from velocity -> running up a ramp no longer triggers a jump animation
+- Rockman-style dash afterimage: during a dash, glowing ghost copies are left behind and fade out
+  (pooled, meshes/materials destroyed manually to avoid leaks)
+- A single character persists across scenes (DontDestroyOnLoad); on scene change the same character is moved, not recreated
+- Bug fixes
+    Pond floor sat below the feet so the shadow looked like it was floating -> pond floor now follows the walk surface
+    Dashing down a ramp left you hanging in the air -> snap back to the ground at the end of a dash
+    Outline of an occluder disappeared when hugging a wall -> changed how occlusion is checked
+- Pencil shader (PencilEdge.hlsl): detects edges from depth + normals and draws them as pencil lines
+  Lines "boil" (jitter on a beat), double strokes, graphite texture -> applied to the character, trees and grass
+- BillboardText: camera-facing floating text with bob/pulse -> signposts in the Hideout and portal labels
+
+
+==============================================================
+ Phase 4 — Punching works! Combat + AI + gem skills (Sep 28–29)
+==============================================================
+Combat
+- Health: HP + teams, knocked back in the direction of the killing blow on death
+- MeleeAttack: one move can have several hitboxes, timed as a fraction of the move (no animation events)
+  Channelled moves (hold to loop), per-skill cooldowns
+- Floating damage numbers (DamageNumbers), pooled
+- The player "requests" an attack -> the server validates it before the hit actually happens (PlayerCombat)
+
+Enemies
+- Same model as the player, punches swapped to a Boxing animation
+- EnemyMotor: arcing jumps between levels
+- EnemyAI: wander -> suspicious -> chase -> dead
+- Spawn in packs that wander around a shared centre; when one spots the player, the whole pack joins in
+- Elites: bigger, glowing, more HP/damage
+- Everything is rolled from the map seed
+- MapNavGraph: AI navigation graph built from the terrace layout (walk / jump up / jump down), viewable as gizmos
+
+PoE-style gem skill system
+- ActiveSkillGem (the move + animation) / SupportGem (modifiers: Flat / Increased% / More%)
+- The player has several slots, each slot = 1 active + 5 support sockets, one key per slot (rebindable)
+- PlayerStats: the single stat sheet of the character (Max HP / movement speed / attack speed); every system just adds/removes modifiers
+- Runtime mesh combining for the generated map (static batching) to cut draw calls
+
+First skills (Sep 29)
+- Punch: Boxing / Hook / Uppercut combo, random without repeating, blended with a Dodging motion
+- Upper-body-only attacks so the legs keep walking (UpperBody Animator layer + avatar mask)
+- Hurricane Kick
+- Flicker Strike: teleport next to the enemy nearest the cursor and strike; hold to chain through the whole pack
+- Shadow clones: shadow copies strike alongside you (real damage, not just visuals)
+- New gem parameters: base attack speed, area of effect, random animation variants, mirroring
+
+
+==============================================================
+ Phase 5 — Items + loot (Oct 1)
+==============================================================
+Items (ScriptableObjects)
+- ItemDefinition: id, name, description, icon, rarity (Normal / Magic / Rare / Unique, PoE-style colours)
+- EquipmentItem (gear): Weapon, OffHand, Helmet, BodyArmour, Gloves, Boots, Belt, Amulet, Ring x2
+  Stats use the same StatModifier formula as gems
+- ConsumableItem (usable items): healing, temporary buffs, per-item-type cooldown
+- Sample items: Iron Helmet, Leather Boots, Ruby Ring, Swift Gloves, Life Flask, Quicksilver Flask
+  (icons are simple shapes drawn by code for now)
+
+Loot
+- Enemy dies -> roll on a Loot Table (Elites roll 3x)
+- Loot does NOT drop on the ground; it goes straight into a loot box waiting at the Hideout
+- LootChest in the Hideout: click it to see a list of [icon] item name xcount, same items stacked in one row
+- Entering a new map = any unclaimed loot is lost (on purpose, so going home to check your loot is part of the loop)
+- Every drop has an id and can only be claimed once / saved as local JSON (can be swapped for a backend later)
+
+Cleanup
+- Extracted "walk into range and click" into a shared ClickInteractable -> portals and the loot chest use the same code
+- Clicking the chest/portal no longer turns into a punch
+
+
+==============================================================
+ Work in progress (not committed yet)
+==============================================================
+- New occlusion style: cut a circular hole around the player in whatever blocks the view (OcclusionCutout)
+  instead of fading the whole object; soft dithered edge, the pencil lines outline the hole, shadows stay intact
+- Flicker Strike: find a landing spot you can actually stand on (previously, an enemy next to a cliff could
+  teleport you under the ground or through the map)
+
+
+==============================================================
+ Lessons learned
+==============================================================
+- Setting multiplayer rules from day one paid off: new systems (skills, enemies, items) are server-authoritative from the start, no rewrite later
+- Seeds matter: the map, enemy packs and elites all come from one seed -> reproducible tests, and later only the seed needs to go over the network
+- One stat formula (flat / increased / more) works for gems, character stats, elites and items
+- Separating visuals from logic made it easy to add visual flair (afterimages, shadow clones, pencil lines) without touching gameplay
+
+
+==============================================================
+ Known issues / limitations
+==============================================================
+- Single player only (no Netcode yet); some code still relies on PlayerMovement.Instance (early code, being phased out)
+- The default TMP font has no Thai glyphs -> UI / item names are in English for now
+- No inventory yet: the loot box is view-only
+- No potion hotkeys / equipment screen / HP HUD yet
+- Item icons are placeholders
+
+
+==============================================================
+ Next up (Devlog #02)
+==============================================================
+[ ] Inventory + "Take all" button in the loot box
+[ ] Equipment screen + item tooltips
+[ ] Potion hotbar
+[ ] "+Item name" popup when an enemy drops loot
+[ ] HP / skill HUD
+[ ] Finish the cut-out occlusion
+[ ] Start on Netcode (host-client) and test co-op locally

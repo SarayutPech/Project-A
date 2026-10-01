@@ -1,0 +1,303 @@
+==============================================================
+ YouTube narration script — DEVLOG #01
+ "The first 9 days of making a Path of Exile-style game solo"
+ Estimated length: 9–11 minutes (~150 words/minute at a normal pace)
+ [VISUAL: ...] = footage to record/cut in   (parentheses) = tone / pacing
+==============================================================
+
+Title ideas
+  1. I'm Making a Path of Exile-Style Game Solo — Devlog #1
+  2. 9 Days: From an Empty Grass Field to an ARPG You Can Fight In | Devlog #1
+  3. Making a Pencil-Sketch ARPG From Scratch | Devlog #1
+
+Thumbnail
+  Left: the bare grass field from day one / Right: the pencil-style character Flicker Striking a pack + shadow clones
+  Text: "DAY 1 -> DAY 9"
+
+
+--------------------------------------------------------------
+[0:00] HOOK
+--------------------------------------------------------------
+[VISUAL: fast cuts — Flicker Strike chaining through a pack / shadow clones punching together / damage numbers popping / a big Elite going down]
+
+(1-second pause)
+
+[VISUAL: cut to the bare square of grass from the first commit]
+
+Nine days ago, this game was just... this patch of grass.
+Today, let's see how it got from here to there.
+
+
+--------------------------------------------------------------
+[0:20] INTRO — What is this game?
+--------------------------------------------------------------
+[VISUAL: walking around the Hideout -> entering the portal -> the map rising up]
+
+Hey everyone, this is the first devlog for the game I'm making on my own.
+It doesn't have a name yet. On my machine it's just called Project-A. (laughs)
+
+It's an ARPG in the style of Path of Exile, with an angled top-down camera.
+You've got a home base called the Hideout, you step through a portal, and you land in a map that's randomly generated every single time.
+Go in, kill monsters, get loot, head home, repeat.
+
+[VISUAL: zoom in on the pencil lines on the character and trees]
+
+And I want the whole thing to look like it was drawn in pencil. More on that later.
+
+[VISUAL: CLAUDE.md page or a host / client diagram]
+
+One more thing I decided on day one: I want you to be able to play with friends, parties of two to six.
+Right now it's still single player, but every bit of code is written with that in mind.
+That's going to come up a lot in this video.
+
+
+--------------------------------------------------------------
+[1:15] Day 1 — Ground that builds itself
+--------------------------------------------------------------
+[VISUAL: hitting regenerate over and over, the map changing every time]
+
+I started with the map generator, because that's the heart of this genre.
+At first it was a grassy island with a random shape, scattered trees and rocks, and an underside hanging below.
+
+[VISUAL: the map build animation, ground rising piece by piece]
+
+Then I made the ground rise up like this when you enter a map.
+Totally unnecessary. But I love it. (smiles)
+
+[VISUAL: capsule character walking with the camera following]
+
+Same day, I got the isometric camera working, plus a character that was still just a capsule walking around.
+
+
+--------------------------------------------------------------
+[2:00] Terraced maps + seeds
+--------------------------------------------------------------
+[VISUAL: multi-level map with ramps, cliffs and ponds]
+
+Flat maps get boring fast, so I added multiple levels, ramps, cliffs and ponds.
+Some ponds are shallow enough to wade through.
+
+[VISUAL: same seed twice, identical maps side by side]
+
+The important part: everything is generated from a single number, the "seed".
+Same seed, exact same map, every time.
+
+Why does that matter? Because when you play with friends, I don't have to send the whole map to every machine.
+I just send one number, and every player builds the same map locally. That saves a ton of bandwidth.
+
+
+--------------------------------------------------------------
+[2:45] Movement that feels good
+--------------------------------------------------------------
+[VISUAL: walking up ramps, sliding along walls, multi-jumping, tap dash, hold sprint]
+
+I sank a lot of time into making movement feel good.
+No getting stuck on ramps, sliding along walls when you bump into them, multiple jumps,
+and one button that dashes when you tap it and sprints when you hold it.
+
+[VISUAL: walking behind a tree/cliff, the occluder fading with an outline]
+
+This camera angle has a classic problem: you walk behind a tree and you can't see yourself.
+So anything that blocks the view now fades out and shows an outline.
+
+
+--------------------------------------------------------------
+[3:30] Hideout and portals
+--------------------------------------------------------------
+[VISUAL: Hideout -> walk to the portal with the "Click me!!" sign -> click -> fade to black -> map]
+
+Every game like this needs a home base, so I split things into two scenes: the Hideout and the random map.
+Walk up to the portal, click it, the screen fades out, the scene loads, and it fades back in.
+
+[VISUAL: going back and forth through portals, same character the whole time]
+
+It's the same character the whole way through, it's not recreated every time,
+so whatever you're carrying and all your stats don't vanish when you warp.
+
+
+--------------------------------------------------------------
+[4:10] Day 5 — The character comes alive + pencil style
+--------------------------------------------------------------
+[VISUAL: capsule swapped for a human model walking, running, jumping, landing]
+
+The capsule is now a person, with walk, run and jump animations.
+I split the jump into four parts: crouch, rising, falling and landing.
+
+(slightly ranty)
+There was a funny bug too: running up a ramp made the character play the jump animation.
+I was guessing "is he jumping?" from vertical speed, and going up a ramp... has vertical speed.
+The fix was to check whether you actually pressed jump.
+
+[VISUAL: dash leaving ghost copies behind (slow-mo)]
+
+And dashing leaves Rockman-style afterimages. I'm really happy with this one.
+
+[VISUAL: before/after pencil shader — split-screen wipe]
+
+Now, the art style.
+I wrote a shader that finds the edges of everything in the scene and draws them as pencil lines.
+The lines wobble slightly like they're hand-drawn, they're doubled up, and they have a graphite texture.
+Put that on the character, the trees and the grass, and suddenly the game has a personality.
+
+
+--------------------------------------------------------------
+[5:15] Days 6–7 — Punching works!
+--------------------------------------------------------------
+[VISUAL: first punch on an enemy, damage numbers, enemy flying back and dying]
+
+This is where it starts feeling like a game.
+You can punch, there are damage numbers, and enemies fly back in the direction you hit them when they die.
+
+[VISUAL: nav graph gizmo showing AI paths across the map]
+
+Enemies can navigate a random map because every time a map is generated, I also build a navigation graph for the AI:
+where you can walk, where you need to jump up, where you can jump down.
+
+[VISUAL: a pack wandering -> one spots you -> the whole pack charges / an enemy jumping down a cliff]
+
+Monsters come in packs and wander around together. When one spots you, the whole pack comes running.
+And they can jump between levels to chase you.
+
+[VISUAL: a big glowing Elite]
+
+There are Elites too: bigger, glowing, more health, hit harder.
+
+(a bit more serious)
+Quick note on the code here.
+When you attack, your side of the game doesn't say "I dealt 50 damage", it says "I'd like to punch here."
+Then the server side decides whether you can, who you hit and for how much.
+That way, once it's online, cheaters can't just edit their own numbers.
+
+
+--------------------------------------------------------------
+[6:30] The gem skill system
+--------------------------------------------------------------
+[VISUAL: PlayerSkills Inspector showing slots + gems]
+
+Skills work like in PoE: they come from gems.
+An active gem is the move itself, and you can socket up to five support gems to modify it,
+like faster attacks, bigger area, more damage.
+
+[VISUAL: Punch combo Boxing / Hook / Uppercut while walking — legs walking, arms punching]
+
+The first one is a punch. It picks random moves without repeating, and it only uses the upper body, so your legs keep walking. No need to stop.
+
+[VISUAL: Hurricane Kick]
+
+Hurricane Kick.
+
+[VISUAL: holding Flicker Strike, chaining through a whole pack (best slow-mo shot)]
+
+And my favourite: Flicker Strike.
+You teleport next to the enemy closest to your cursor and hit it. Hold the button and you chain through the whole pack.
+
+[VISUAL: shadow clones punching together]
+
+Plus shadow clones that come out and punch alongside you.
+And they're not just for show, the clones deal real damage.
+
+
+--------------------------------------------------------------
+[7:30] Day 9 — Items and loot
+--------------------------------------------------------------
+[VISUAL: Project window Items folder -> item Inspector]
+
+Once you can fight, you need loot.
+Right now there are two kinds of items: gear, like helmets, boots and rings, and consumables, like potions.
+Item stats use the exact same formula as gems. I wrote that formula once and the whole game uses it.
+
+[VISUAL: killing an enemy, nothing on the ground -> warp home -> click the chest -> loot list pops up]
+
+Here's where I went a different way from PoE: loot doesn't drop on the ground.
+When an enemy dies, the loot goes straight into a chest back home. Clear the map, head home, and see what you got.
+Icons on the left, and the name colour tells you the rarity.
+
+[VISUAL: loot in the chest -> don't open it -> enter a new map -> come back, chest empty]
+
+But if you forget to check it and jump straight into a new map... all your old loot is gone.
+(pause) That's on purpose. I want going home and opening the chest to be part of the rhythm of the game.
+If you think that's too harsh, come fight me in the comments. (laughs)
+
+[VISUAL: zoom on the icons]
+
+The icons are just simple shapes drawn by code for now. Real art will come later.
+
+
+--------------------------------------------------------------
+[8:40] Work in progress
+--------------------------------------------------------------
+[VISUAL: walking behind a cliff with a circular hole cut around the character (if you can record it)]
+
+Right now I'm working on a new way to handle things blocking your view.
+Instead of fading the whole object, it cuts a circular hole around you, with a soft edge, and the shadows stay intact.
+I'm also fixing Flicker Strike sometimes teleporting you under the ground when the enemy is standing next to a cliff. (laughs)
+
+
+--------------------------------------------------------------
+[9:05] Recap + next time
+--------------------------------------------------------------
+[VISUAL: quick montage from bare grass -> map rising -> capsule -> human -> pencil -> combat -> Flicker -> loot chest]
+
+Nine days, twenty-eight commits.
+From one patch of grass to random maps, a character, skills, monsters and loot.
+
+But there's still a lot missing.
+No inventory yet, so you can't actually take items out of the chest and wear them.
+No potion hotkeys, no health bar on screen.
+And you can't play with friends yet.
+
+Next episode will probably be the inventory and an equipment screen.
+And if things go well, maybe a first try at two-player co-op.
+
+
+--------------------------------------------------------------
+[9:45] OUTRO
+--------------------------------------------------------------
+[VISUAL: character standing next to the chest in the Hideout, camera slowly zooming out]
+
+If you enjoy watching a game get built like this, hit like, subscribe and ring the bell so you don't miss the next one.
+And let me know in the comments:
+one, what should this game be called?
+two, what skills would you like to see?
+
+See you in the next devlog. Bye!
+
+
+==============================================================
+ Shot list
+==============================================================
+ HOOK / thumbnail
+  1. Flicker Strike through a pack + shadow clones + damage numbers + Elite going down (record several takes, pick the best)
+  2. The bare grass field from day one -> checkout commit 2c53b89 and record (or disable other systems in the scene)
+ Maps
+  3. Regenerating the map several times / the ground rising animation
+  4. Multi-level map with ramps, cliffs, ponds, wading through a pond
+  5. Same seed twice giving the same map (split-screen)
+ Character / camera
+  6. The capsule character (commit 8f8dd7a) — if checking out is a hassle, use a still or just narrate it
+  7. Walking up ramps, sliding along walls, multi-jump, dash, sprint
+  8. Occluders fading with outlines
+  9. Hideout -> portal -> fade -> map, and back
+ Visuals
+ 10. Walk, run, the 4-part jump / dash afterimage (slow-mo)
+ 11. Before/after the pencil shader (toggle the material or renderer feature)
+ Combat
+ 12. First punch on an enemy, damage numbers, knockback death
+ 13. Nav graph gizmo (MapNavGraphGizmos)
+ 14. Pack ganging up / enemy jumping down a cliff after you / Elite
+ Skills
+ 15. PlayerSkills Inspector (slots + gems)
+ 16. Punch combo while walking / Hurricane Kick / Flicker Strike / shadow clones
+ Items
+ 17. Items folder + Inspector
+ 18. Enemy dies with nothing on the ground -> go home -> open the chest -> loot list
+ 19. Loot in the chest -> enter a new map -> chest shows "No items yet"
+ Work in progress
+ 20. Circular cut-out around the character (if it's done by recording time, otherwise cut this section)
+ Outro
+ 21. Montage from the start + standing next to the chest, zooming out
+
+Notes
+- For the throwback shots (2, 6), check out the old commits in a separate folder (git worktree) so your current work isn't affected
+- "9 days / 28 commits" comes from git log (2026-09-23 to 2026-10-01) and does not include the item system, which isn't committed yet
+  If you commit the item system before recording, the number changes / if you started before the first commit, adjust the hook wording
