@@ -10,6 +10,7 @@ public class PlayerConsumables : MonoBehaviour
 {
     private Health _health;
     private PlayerStats _stats;
+    private Mana _mana;
 
     private readonly Dictionary<string, float> _readyTime = new Dictionary<string, float>(); // item id -> เวลาที่ใช้ได้อีก
     private readonly Dictionary<string, float> _buffEnd = new Dictionary<string, float>();   // แหล่งบัฟ -> เวลาหมด
@@ -21,6 +22,7 @@ public class PlayerConsumables : MonoBehaviour
     {
         _health = GetComponent<Health>();
         _stats = GetComponent<PlayerStats>();
+        _mana = GetComponent<Mana>();
     }
 
     public bool IsReady(ConsumableItem item) =>
@@ -36,6 +38,9 @@ public class PlayerConsumables : MonoBehaviour
 
         if (item.HasHeal)
             _health.Heal(item.healFlat + _health.maxHealth * item.healPercent * 0.01f);
+
+        if (item.HasMana && _mana != null)
+            _mana.Restore(item.manaFlat + _mana.maxMana * item.manaPercent * 0.01f);
 
         if (item.HasBuff && _stats != null)
         {

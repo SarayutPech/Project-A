@@ -27,7 +27,7 @@ public class SkillSlot
 public class PlayerSkills : MonoBehaviour
 {
     public const int MaxSupportSlots = 5;
-    public const int MaxSkillSlots = 8;
+    public const int MaxSkillSlots = 10; // 2 ชุด x 5 ช่อง (กด Ctrl ค้าง = ชุดที่ 2 ดู PlayerAttackInput)
 
     public List<SkillSlot> slots = new List<SkillSlot>
     {

@@ -15,8 +15,11 @@ MonoBehaviour:
   id: flicker_strike
   displayName: Flicker Strike
   description: "\u0E27\u0E32\u0E23\u0E4C\u0E1B\u0E44\u0E1B\u0E02\u0E49\u0E32\u0E07\u0E28\u0E31\u0E15\u0E23\u0E39\u0E43\u0E01\u0E25\u0E49\u0E40\u0E04\u0E2D\u0E23\u0E4C\u0E40\u0E0B\u0E2D\u0E23\u0E4C\u0E41\u0E25\u0E49\u0E27\u0E15\u0E35 \u0E01\u0E14\u0E04\u0E49\u0E32\u0E07\u0E40\u0E1E\u0E37\u0E48\u0E2D\u0E27\u0E32\u0E23\u0E4C\u0E1B\u0E44\u0E1B\u0E15\u0E35\u0E15\u0E31\u0E27\u0E16\u0E31\u0E14\u0E44\u0E1B\u0E40\u0E23\u0E37\u0E48\u0E2D\u0E22\u0E46"
-  gemColor: {r: 0.3, g: 0.8, b: 0.35, a: 1}
   icon: {fileID: 0}
+  rarity: 0
+  maxStack: 1
+  weight: 1
+  gemColor: {r: 0.3, g: 0.8, b: 0.35, a: 1}
   maxLevel: 20
   animation: {fileID: -203655887218126122, guid: d209c135895d71b4b9615bf05ca7d8eb, type: 3}
   animationVariants:
@@ -40,7 +43,8 @@ MonoBehaviour:
   shadowCloneDistance: 1.3
   shadowCloneAngle: 55
   shadowCloneDamage: 0.35
-  baseDamage: 14
+  baseDamageMin: 24
+  baseDamageMax: 36
   damagePerLevel: 3
   hitboxes:
   - time: 0.35
@@ -58,3 +62,6 @@ MonoBehaviour:
   loopStart: 0.1
   loopEnd: 0.7
   maxChannelTime: 0
+  spawnOnCast: {fileID: 0}
+  spawnDistance: 2.5
+  singleSpawnInstance: 1

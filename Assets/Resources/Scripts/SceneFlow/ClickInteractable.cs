@@ -36,6 +36,7 @@ public abstract class ClickInteractable : MonoBehaviour
 
     // ตัวที่เปิดอยู่ทั้งหมด ให้ระบบคลิกอื่น (เช่น PlayerAttackInput) รู้ว่าคลิกนี้เป็นการ interact ไม่ใช่โจมตี
     private static readonly List<ClickInteractable> _active = new List<ClickInteractable>();
+    public static IReadOnlyList<ClickInteractable> All => _active; // เช่น minimap แสดงไอคอน portal / กล่อง
 
     // ray นี้โดน object ที่ player อยู่ในระยะ (คลิกแล้วจะ interact)
     public static bool IsInteractableUnder(Ray ray, float maxDistance)

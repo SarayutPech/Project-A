@@ -1,0 +1,638 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b1808faecce4a04bacc24c36663a394, type: 3}
+  m_Name: PassiveTree
+  m_EditorClassIdentifier: Assembly-CSharp::PassiveTree
+  nodes:
+  - id: start
+    displayName: Start
+    type: 0
+    isStart: 1
+    position: {x: -0, y: 0}
+    links: []
+    modifiers: []
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: str1
+    displayName: Strength
+    type: 0
+    isStart: 0
+    position: {x: -0, y: 80}
+    links:
+    - start
+    modifiers:
+    - stat: 15
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: str2
+    displayName: Strength
+    type: 0
+    isStart: 0
+    position: {x: -0, y: 160}
+    links:
+    - str1
+    modifiers:
+    - stat: 15
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: str3
+    displayName: Strength
+    type: 0
+    isStart: 0
+    position: {x: -0, y: 240}
+    links:
+    - str2
+    modifiers:
+    - stat: 15
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: str4
+    displayName: Strength
+    type: 0
+    isStart: 0
+    position: {x: -0, y: 320}
+    links:
+    - str3
+    modifiers:
+    - stat: 15
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: str5
+    displayName: Strength
+    type: 0
+    isStart: 0
+    position: {x: -0, y: 400}
+    links:
+    - str4
+    modifiers:
+    - stat: 15
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: str_notable
+    displayName: Brute Force
+    type: 1
+    isStart: 0
+    position: {x: -0, y: 500}
+    links:
+    - str5
+    modifiers:
+    - stat: 15
+      type: 0
+      value: 20
+      valuePerLevel: 0
+      valueMax: 0
+    - stat: 0
+      type: 1
+      value: 15
+      valuePerLevel: 0
+      valueMax: 0
+    - stat: 10
+      type: 0
+      value: 20
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: str6
+    displayName: Life
+    type: 0
+    isStart: 0
+    position: {x: -0, y: 590}
+    links:
+    - str_notable
+    modifiers:
+    - stat: 10
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: str7
+    displayName: Life
+    type: 0
+    isStart: 0
+    position: {x: -0, y: 670}
+    links:
+    - str6
+    modifiers:
+    - stat: 10
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: str_keystone
+    displayName: Iron Will
+    type: 2
+    isStart: 0
+    position: {x: 0, y: 760}
+    links:
+    - str7
+    modifiers:
+    - stat: 0
+      type: 2
+      value: 30
+      valuePerLevel: 0
+      valueMax: 0
+    - stat: 1
+      type: 2
+      value: -15
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: dex1
+    displayName: Dexterity
+    type: 0
+    isStart: 0
+    position: {x: -60, y: -40}
+    links:
+    - start
+    modifiers:
+    - stat: 16
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: dex2
+    displayName: Dexterity
+    type: 0
+    isStart: 0
+    position: {x: -139, y: -80}
+    links:
+    - dex1
+    modifiers:
+    - stat: 16
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: dex3
+    displayName: Dexterity
+    type: 0
+    isStart: 0
+    position: {x: -208, y: -120}
+    links:
+    - dex2
+    modifiers:
+    - stat: 16
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: dex4
+    displayName: Dexterity
+    type: 0
+    isStart: 0
+    position: {x: -277, y: -160}
+    links:
+    - dex3
+    modifiers:
+    - stat: 16
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: dex5
+    displayName: Dexterity
+    type: 0
+    isStart: 0
+    position: {x: -346, y: -200}
+    links:
+    - dex4
+    modifiers:
+    - stat: 16
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: dex_notable
+    displayName: Quick Hands
+    type: 1
+    isStart: 0
+    position: {x: -433, y: -250}
+    links:
+    - dex5
+    modifiers:
+    - stat: 16
+      type: 0
+      value: 20
+      valuePerLevel: 0
+      valueMax: 0
+    - stat: 1
+      type: 1
+      value: 8
+      valuePerLevel: 0
+      valueMax: 0
+    - stat: 11
+      type: 1
+      value: 5
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: dex6
+    displayName: Attack Speed
+    type: 0
+    isStart: 0
+    position: {x: -511, y: -295}
+    links:
+    - dex_notable
+    modifiers:
+    - stat: 1
+      type: 1
+      value: 4
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: dex7
+    displayName: Attack Speed
+    type: 0
+    isStart: 0
+    position: {x: -580, y: -335}
+    links:
+    - dex6
+    modifiers:
+    - stat: 1
+      type: 1
+      value: 4
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: dex_keystone
+    displayName: Wind Dancer
+    type: 2
+    isStart: 0
+    position: {x: -684, y: -395}
+    links:
+    - dex7
+    modifiers:
+    - stat: 1
+      type: 1
+      value: 15
+      valuePerLevel: 0
+      valueMax: 0
+    - stat: 11
+      type: 1
+      value: 15
+      valuePerLevel: 0
+      valueMax: 0
+    - stat: 10
+      type: 2
+      value: -20
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: int1
+    displayName: Intelligence
+    type: 0
+    isStart: 0
+    position: {x: 60, y: -40}
+    links:
+    - start
+    modifiers:
+    - stat: 17
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: int2
+    displayName: Intelligence
+    type: 0
+    isStart: 0
+    position: {x: 140, y: -80}
+    links:
+    - int1
+    modifiers:
+    - stat: 17
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: int3
+    displayName: Intelligence
+    type: 0
+    isStart: 0
+    position: {x: 208, y: -120}
+    links:
+    - int2
+    modifiers:
+    - stat: 17
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: int4
+    displayName: Intelligence
+    type: 0
+    isStart: 0
+    position: {x: 277, y: -160}
+    links:
+    - int3
+    modifiers:
+    - stat: 17
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: int5
+    displayName: Intelligence
+    type: 0
+    isStart: 0
+    position: {x: 346, y: -200}
+    links:
+    - int4
+    modifiers:
+    - stat: 17
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: int_notable
+    displayName: Deep Wisdom
+    type: 1
+    isStart: 0
+    position: {x: 433, y: -250}
+    links:
+    - int5
+    modifiers:
+    - stat: 17
+      type: 0
+      value: 20
+      valuePerLevel: 0
+      valueMax: 0
+    - stat: 12
+      type: 0
+      value: 25
+      valuePerLevel: 0
+      valueMax: 0
+    - stat: 13
+      type: 0
+      value: 1
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: int6
+    displayName: Mana
+    type: 0
+    isStart: 0
+    position: {x: 511, y: -295}
+    links:
+    - int_notable
+    modifiers:
+    - stat: 12
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: int7
+    displayName: Mana
+    type: 0
+    isStart: 0
+    position: {x: 580, y: -335}
+    links:
+    - int6
+    modifiers:
+    - stat: 12
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: int_keystone
+    displayName: Arcane Mind
+    type: 2
+    isStart: 0
+    position: {x: 684, y: -395}
+    links:
+    - int7
+    modifiers:
+    - stat: 12
+      type: 2
+      value: 50
+      valuePerLevel: 0
+      valueMax: 0
+    - stat: 13
+      type: 1
+      value: 50
+      valuePerLevel: 0
+      valueMax: 0
+    - stat: 10
+      type: 2
+      value: -15
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: ring1
+    displayName: Life
+    type: 0
+    isStart: 0
+    position: {x: -208, y: 120}
+    links:
+    - str3
+    - dex3
+    modifiers:
+    - stat: 10
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: ring2
+    displayName: Damage
+    type: 0
+    isStart: 0
+    position: {x: 0, y: -240}
+    links:
+    - dex3
+    - int3
+    modifiers:
+    - stat: 0
+      type: 1
+      value: 8
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: ring3
+    displayName: Mana
+    type: 0
+    isStart: 0
+    position: {x: 208, y: 120}
+    links:
+    - int3
+    - str3
+    modifiers:
+    - stat: 12
+      type: 0
+      value: 10
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: n32
+    displayName: Small
+    type: 1
+    isStart: 0
+    position: {x: 340, y: 200}
+    links:
+    - ring3
+    modifiers:
+    - stat: 0
+      type: 0
+      value: 0
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: n33
+    displayName: Keystone
+    type: 2
+    isStart: 0
+    position: {x: 460, y: 280}
+    links:
+    - n32
+    modifiers:
+    - stat: 1
+      type: 0
+      value: 5
+      valuePerLevel: 0
+      valueMax: 0
+    - stat: 0
+      type: 0
+      value: 0
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: n34
+    displayName: Keystone
+    type: 2
+    isStart: 0
+    position: {x: 580, y: 220}
+    links:
+    - n33
+    - n35
+    modifiers:
+    - stat: 0
+      type: 0
+      value: 40
+      valuePerLevel: 0
+      valueMax: 60
+    - stat: 2
+      type: 2
+      value: 50
+      valuePerLevel: 0
+      valueMax: 0
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}
+  - id: n35
+    displayName: Keystone
+    type: 2
+    isStart: 0
+    position: {x: 580, y: 360}
+    links:
+    - n33
+    modifiers:
+    - stat: 0
+      type: 0
+      value: 80
+      valuePerLevel: 0
+      valueMax: 120
+    description: 
+    icon: {fileID: 0}
+    frame: {fileID: 0}

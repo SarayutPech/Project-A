@@ -15,8 +15,11 @@ MonoBehaviour:
   id: punch
   displayName: Punch
   description: "\u0E15\u0E48\u0E2D\u0E22\u0E2A\u0E2D\u0E07\u0E2B\u0E21\u0E31\u0E14\u0E44\u0E1B\u0E02\u0E49\u0E32\u0E07\u0E2B\u0E19\u0E49\u0E32"
-  gemColor: {r: 0.85, g: 0.25, b: 0.2, a: 1}
   icon: {fileID: 0}
+  rarity: 0
+  maxStack: 1
+  weight: 1
+  gemColor: {r: 0.85, g: 0.25, b: 0.2, a: 1}
   maxLevel: 20
   animation: {fileID: -203655887218126122, guid: 9995cc3036e79444689b92789a48f6ba, type: 3}
   animationVariants:
@@ -40,7 +43,8 @@ MonoBehaviour:
   shadowCloneDistance: 1.3
   shadowCloneAngle: 55
   shadowCloneDamage: 0.35
-  baseDamage: 15
+  baseDamageMin: 12
+  baseDamageMax: 18
   damagePerLevel: 1
   hitboxes:
   - time: 0.27
@@ -58,3 +62,6 @@ MonoBehaviour:
   loopStart: 0.25
   loopEnd: 0.75
   maxChannelTime: 4
+  spawnOnCast: {fileID: 0}
+  spawnDistance: 2.5
+  singleSpawnInstance: 1

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 // ระบบต่อสู้ของ player ฝั่ง simulation (server): รับ "คำขอโจมตี" แล้ว validate ก่อนสั่ง MeleeAttack
 // + คุมการเคลื่อนที่ระหว่างโจมตี และจัดการตอนตาย/ฟื้น
@@ -24,6 +25,7 @@ public class PlayerCombat : MonoBehaviour
     private PlayerMovement _movement;
     private PlayerSkills _skills;
     private float _respawnTimer = -1f;
+    private readonly System.Collections.Generic.Dictionary<ActiveSkillGem, GameObject> _spawned = new System.Collections.Generic.Dictionary<ActiveSkillGem, GameObject>();
 
     private void Awake()
     {
@@ -67,6 +69,7 @@ public class PlayerCombat : MonoBehaviour
 
         SkillSlot s = _skills != null ? _skills.GetSlot(slot) : null; // index จาก client ต้องเช็คช่วง
         if (s == null || s.Resolved == null) return false;
+        if (!CanSpawnHere(s.Resolved.Gem)) return false;
 
         if (!Attack.TryAttack(s.Resolved, aimDirection, held, aimPoint)) return false;
         _activeSlot = slot;
@@ -90,6 +93,7 @@ public class PlayerCombat : MonoBehaviour
     {
         _movement.ActionSpeedMultiplier = attack.MoveSpeedMultiplier;
         _movement.DashBlocked = !allowDashWhileAttacking;
+        SpawnOnCast(attack.ActiveSkill != null ? attack.ActiveSkill.Gem : null);
     }
 
     private void OnAttackFinished(MeleeAttack attack)
@@ -134,5 +138,34 @@ public class PlayerCombat : MonoBehaviour
         // scene ที่ไม่มีแผนที่ (hideout) ฟื้นที่เดิม
         _movement.SpawnAtMapStart();
         Health.Revive(respawnHealthFraction);
+    }
+
+    // ---------- Spawn On Cast (เช่น Recall = portal กลับ Hideout) ----------
+
+    // portal ที่พาไป scene ที่อยู่ตอนนี้ (กลับ Hideout ตอนอยู่ Hideout) = ใช้ไม่ได้ (เช็คก่อนเริ่มท่า ไม่เสีย cooldown)
+    private static bool CanSpawnHere(ActiveSkillGem gem)
+    {
+        if (gem == null || gem.spawnOnCast == null) return true;
+        var portal = gem.spawnOnCast.GetComponent<ScenePortal>();
+        return portal == null || portal.destinationSceneName != SceneManager.GetActiveScene().name;
+    }
+
+    // สร้างตอนเริ่มท่า ในฉากของแผนที่ที่ผู้เล่นอยู่ (ไม่ใช่ DontDestroyOnLoad ของ player -> เปลี่ยน scene แล้วหายเอง)
+    // ภายหลังทำ Netcode: object นี้เป็น NetworkObject ที่ server spawn
+    private void SpawnOnCast(ActiveSkillGem gem)
+    {
+        if (gem == null || gem.spawnOnCast == null) return;
+        if (gem.singleSpawnInstance && _spawned.TryGetValue(gem, out var old) && old != null) Destroy(old);
+
+        Vector3 dir = Attack.AimDirection;
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 0.0001f) dir = transform.forward;
+        dir.Normalize();
+        Vector3 pos = transform.position + dir * gem.spawnDistance;
+        Quaternion rot = Quaternion.LookRotation(-dir) * gem.spawnOnCast.transform.rotation; // หันหน้าเข้าหาผู้เล่น
+
+        var obj = Instantiate(gem.spawnOnCast, pos, rot);
+        SceneManager.MoveGameObjectToScene(obj, SceneManager.GetActiveScene());
+        _spawned[gem] = obj;
     }
 }

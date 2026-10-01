@@ -6,6 +6,7 @@ using UnityEngine;
 public static class ItemDatabase
 {
     public const string ResourcesPath = "Gameobject/ScriptAbleObject/Items";
+    public const string GemResourcesPath = "Gameobject/ScriptAbleObject/Skills"; // skill/support gem ก็เป็นไอเทม
 
     private static Dictionary<string, ItemDefinition> _byId;
 
@@ -31,7 +32,9 @@ public static class ItemDatabase
     {
         if (_byId != null) return;
         _byId = new Dictionary<string, ItemDefinition>();
-        foreach (var def in Resources.LoadAll<ItemDefinition>(ResourcesPath))
+        var all = new List<ItemDefinition>(Resources.LoadAll<ItemDefinition>(ResourcesPath));
+        all.AddRange(Resources.LoadAll<ItemDefinition>(GemResourcesPath));
+        foreach (var def in all)
         {
             if (string.IsNullOrEmpty(def.id))
             {

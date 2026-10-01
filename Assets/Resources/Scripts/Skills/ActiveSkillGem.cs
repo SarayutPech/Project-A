@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 // gem สกิลโจมตีระยะประชิด (ข้อมูลท่า) สร้างจาก Create > Skills > Active Skill Gem
 // MeleeAttack อ่านค่าจาก gem นี้ + support gem ที่ใส่ช่อง (ผ่าน ResolvedSkill) ไม่เก็บค่าท่าเองแล้ว
@@ -14,6 +15,8 @@ public enum SkillMirrorMode
 [CreateAssetMenu(menuName = "Skills/Active Skill Gem", fileName = "ActiveGem_")]
 public class ActiveSkillGem : SkillGem
 {
+    public override ItemCategory Category => ItemCategory.SkillGem;
+
     [Header("Presentation")]
     [Tooltip("ท่าหลัก (ใช้เมื่อ Animation Variants ว่าง)")]
     public AnimationClip animation;
@@ -63,8 +66,10 @@ public class ActiveSkillGem : SkillGem
     [Range(0f, 2f)] public float shadowCloneDamage = 0.35f;
 
     [Header("Damage")]
-    [Min(0f)] public float baseDamage = 10f;
-    [Tooltip("ดาเมจเพิ่มต่อ level ของ gem")]
+    [Tooltip("ดาเมจต่ำสุด / สูงสุดที่ level 1 (สุ่มในช่วงนี้ทุกครั้งที่โดน) สูงสุด <= ต่ำสุด = ค่าเดียว")]
+    [FormerlySerializedAs("baseDamage")] [Min(0f)] public float baseDamageMin = 10f;
+    [Min(0f)] public float baseDamageMax = 0f;
+    [Tooltip("ดาเมจเพิ่มต่อ level ของ gem (ทั้งต่ำสุดและสูงสุด)")]
     [Min(0f)] public float damagePerLevel = 2f;
     public List<AttackHitbox> hitboxes = new List<AttackHitbox> { new AttackHitbox() };
 
@@ -81,7 +86,16 @@ public class ActiveSkillGem : SkillGem
     [Tooltip("วนได้นานสุดกี่วินาที (0 = ไม่จำกัด)")]
     [Min(0f)] public float maxChannelTime = 0f;
 
-    public float DamageAtLevel(int level) => baseDamage + damagePerLevel * (Mathf.Max(1, level) - 1);
+    [Header("Spawn On Cast (เช่น Recall เปิด portal)")]
+    [Tooltip("สร้าง object นี้หน้าตัวตอนเริ่มท่า (server) ว่าง = ไม่สร้าง\nถ้าเป็น ScenePortal ที่พาไป scene ที่อยู่แล้ว (เช่น portal กลับ Hideout ตอนอยู่ใน Hideout) จะใช้สกิลไม่ได้")]
+    public GameObject spawnOnCast;
+    [Tooltip("ระยะหน้าตัว (ตามทิศที่ใช้สกิล)")]
+    [Min(0f)] public float spawnDistance = 2.5f;
+    [Tooltip("มีได้ทีละ 1 อันต่อผู้เล่น (ใช้ใหม่ = อันเก่าหายไป)")]
+    public bool singleSpawnInstance = true;
+
+    public float DamageMinAtLevel(int level) => baseDamageMin + damagePerLevel * (Mathf.Max(1, level) - 1);
+    public float DamageMaxAtLevel(int level) => Mathf.Max(baseDamageMin, baseDamageMax) + damagePerLevel * (Mathf.Max(1, level) - 1);
 
     // จำนวนท่าที่สุ่มได้ (อย่างน้อย 1 = animation หลัก)
     public int AnimationCount => animationVariants != null && animationVariants.Count > 0 ? animationVariants.Count : 1;

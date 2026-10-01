@@ -11,6 +11,12 @@ public class ConsumableItem : ItemDefinition
     [Tooltip("เติม HP เป็น % ของ Max HP (20 = 20%)")]
     [Min(0f)] public float healPercent = 0f;
 
+    [Header("Mana")]
+    [Tooltip("เติมมานาตรงๆ")]
+    [Min(0f)] public float manaFlat = 0f;
+    [Tooltip("เติมมานาเป็น % ของ Max Mana (20 = 20%)")]
+    [Min(0f)] public float manaPercent = 0f;
+
     [Header("Buff")]
     [Tooltip("modifier ชั่วคราว เข้า PlayerStats ตอนใช้ หมดเวลาแล้วถอดเอง (ใช้ซ้ำ = รีเวลาใหม่ ไม่ซ้อน)")]
     public List<StatModifier> buffs = new List<StatModifier>();
@@ -21,6 +27,8 @@ public class ConsumableItem : ItemDefinition
     [Min(0f)] public float cooldown = 1f;
 
     public bool HasHeal => healFlat > 0f || healPercent > 0f;
+    public bool HasMana => manaFlat > 0f || manaPercent > 0f;
+    public override ItemCategory Category => ItemCategory.Usable;
     public bool HasBuff => buffs != null && buffs.Count > 0 && buffDuration > 0f;
 
 #if UNITY_EDITOR

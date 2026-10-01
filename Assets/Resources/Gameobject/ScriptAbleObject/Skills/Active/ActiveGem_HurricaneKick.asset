@@ -15,8 +15,11 @@ MonoBehaviour:
   id: hurricane_kick
   displayName: Hurricane Kick
   description: "\u0E40\u0E15\u0E30\u0E2B\u0E21\u0E38\u0E19\u0E23\u0E2D\u0E1A\u0E15\u0E31\u0E27 \u0E01\u0E14\u0E04\u0E49\u0E32\u0E07\u0E40\u0E1E\u0E37\u0E48\u0E2D\u0E2B\u0E21\u0E38\u0E19\u0E15\u0E48\u0E2D\u0E40\u0E19\u0E37\u0E48\u0E2D\u0E07"
-  gemColor: {r: 0.85, g: 0.25, b: 0.2, a: 1}
   icon: {fileID: 0}
+  rarity: 0
+  maxStack: 1
+  weight: 1
+  gemColor: {r: 0.85, g: 0.25, b: 0.2, a: 1}
   maxLevel: 20
   animation: {fileID: -203655887218126122, guid: 1236c514161d20748b02a39411a6ce5d, type: 3}
   animationVariants: []
@@ -32,7 +35,13 @@ MonoBehaviour:
   teleportRange: 12
   teleportLandingGap: 0.3
   avoidSameTarget: 1
-  baseDamage: 10
+  shadowCloneCount: 0
+  shadowClonesOnlyWhileHeld: 1
+  shadowCloneDistance: 1.3
+  shadowCloneAngle: 55
+  shadowCloneDamage: 0.35
+  baseDamageMin: 8
+  baseDamageMax: 12
   damagePerLevel: 2
   hitboxes:
   - time: 0.15
@@ -65,3 +74,6 @@ MonoBehaviour:
   loopStart: 0.25
   loopEnd: 0.75
   maxChannelTime: 0
+  spawnOnCast: {fileID: 0}
+  spawnDistance: 2.5
+  singleSpawnInstance: 1

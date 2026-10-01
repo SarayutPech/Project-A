@@ -549,14 +549,15 @@ public class MeleeAttack : MonoBehaviour
             foreach (var set in _cloneHits) set.Clear();
         }
 
-        HitFrom(h, transform.position, AimDirection, Mirrored, _active.Damage, _hitThisStrike);
+        HitFrom(h, transform.position, AimDirection, Mirrored, 1f, _hitThisStrike);
         for (int c = 0; c < clones; c++)
-            HitFrom(h, GetClonePosition(c), GetCloneAim(c), IsCloneMirrored(c), _active.Damage * _active.ShadowCloneDamage, _cloneHits[c]);
+            HitFrom(h, GetClonePosition(c), GetCloneAim(c), IsCloneMirrored(c), _active.ShadowCloneDamage, _cloneHits[c]);
     }
 
-    private void HitFrom(AttackHitbox h, Vector3 origin, Vector3 aim, bool mirrored, float damage, HashSet<Health> alreadyHit)
+    // damageScale = ตัวคูณดาเมจ (ร่างเงา) ดาเมจสุ่มในช่วง min-max ของท่า แยกทุกเป้าที่โดน (server)
+    private void HitFrom(AttackHitbox h, Vector3 origin, Vector3 aim, bool mirrored, float damageScale, HashSet<Health> alreadyHit)
     {
-        if (damage <= 0f) return;
+        if (damageScale <= 0f || _active.DamageMax <= 0f) return;
         float radiusMul = _active.RadiusMultiplier;
         // ใช้ PhysicsScene ของ scene ตัวเอง รองรับหลาย instance ใน process เดียว (กฎข้อ 6)
         int count = gameObject.scene.GetPhysicsScene().OverlapSphere(HitCenter(h, origin, aim, mirrored, radiusMul), h.radius * radiusMul * Scale,
@@ -575,7 +576,8 @@ public class MeleeAttack : MonoBehaviour
 
             alreadyHit.Add(target);
             Vector3 dir = toTarget.sqrMagnitude > 0.0001f ? toTarget.normalized : aim;
-            if (target.ApplyDamage(new DamageInfo { amount = damage * h.damageMultiplier, source = gameObject, direction = dir }))
+            float damage = _active.RollDamage() * damageScale * h.damageMultiplier;
+            if (target.ApplyDamage(new DamageInfo { amount = damage, source = gameObject, direction = dir }))
                 Hit?.Invoke(this, target);
         }
     }

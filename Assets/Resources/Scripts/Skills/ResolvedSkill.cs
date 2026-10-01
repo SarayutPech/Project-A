@@ -9,7 +9,11 @@ public class ResolvedSkill
     public ActiveSkillGem Gem { get; private set; }
     public int Level { get; private set; }
 
-    public float Damage { get; private set; }
+    // ดาเมจต่อ hitbox แบบช่วง (สุ่มทุกครั้งที่โดน ฝั่ง server) / Damage = ค่าเฉลี่ยไว้แสดง/เทียบ
+    public float DamageMin { get; private set; }
+    public float DamageMax { get; private set; }
+    public float Damage => (DamageMin + DamageMax) * 0.5f;
+    public float RollDamage() => DamageMax > DamageMin ? Random.Range(DamageMin, DamageMax) : DamageMin;
     // ความเร็วตีสุดท้าย (ฐาน = Attack Speed ของตัวละคร แล้ว support บวก/คูณต่อ) ท่า/hitbox/cooldown/animation เร็วขึ้นตามนี้
     public float AttackSpeed { get; private set; }
     public float MoveSpeedMultiplier { get; private set; }
@@ -72,7 +76,9 @@ public class ResolvedSkill
         if (extraModifiers != null)
             foreach (var m in extraModifiers) mods.Add((m, 1));
 
-        r.Damage = Mathf.Max(0f, StatMath.Apply(gem.DamageAtLevel(r.Level), StatType.Damage, mods));
+        Vector2 dmg = StatMath.ApplyRange(gem.DamageMinAtLevel(r.Level), gem.DamageMaxAtLevel(r.Level), StatType.Damage, mods);
+        r.DamageMin = dmg.x;
+        r.DamageMax = dmg.y;
         // ฐาน = ความเร็วตีตัวละคร × ความเร็วฐานของสกิล แล้ว support บวก/คูณต่อ
         r.AttackSpeed = Mathf.Max(0.1f, StatMath.Apply(Mathf.Max(0.1f, baseAttackSpeed) * gem.attackSpeed, StatType.AttackSpeed, mods));
         r.MoveSpeedMultiplier = Mathf.Clamp(StatMath.Apply(1f - gem.moveSlowPercent * 0.01f, StatType.MoveSpeedWhileUsing, mods), 0f, 2f);

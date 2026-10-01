@@ -32,6 +32,24 @@ public class PlayerStats : MonoBehaviour
     [Min(0f)] public float baseMovementSpeed = 5f;
     [Tooltip("ความเร็วตีฐานของตัวละคร (1 = ท่าเล่นตามความยาวใน gem) ทุกสกิลใช้เป็นฐาน")]
     [Min(0.1f)] public float baseAttackSpeed = 1f;
+    [Min(0f)] public float baseMaxMana = 50f;
+    [Tooltip("มานาฟื้นต่อวินาที")]
+    [Min(0f)] public float baseManaRegen = 2f;
+    [Tooltip("น้ำหนักที่กระเป๋ารับได้ (Byte)")]
+    [Min(0f)] public float baseCarryCapacity = 1024f;
+
+    [Header("Attributes (Str / Dex / Int)")]
+    [Min(0f)] public float baseStrength = 10f;
+    [Min(0f)] public float baseDexterity = 10f;
+    [Min(0f)] public float baseIntelligence = 10f;
+    [Tooltip("Str 1 แต้ม = Max Life เพิ่มเท่านี้ (flat)")]
+    public float lifePerStrength = 0.5f;
+    [Tooltip("Str 1 แต้ม = Damage increased เท่านี้ %")]
+    public float damagePercentPerStrength = 0.2f;
+    [Tooltip("Dex 1 แต้ม = Attack Speed increased เท่านี้ %")]
+    public float attackSpeedPercentPerDexterity = 0.2f;
+    [Tooltip("Int 1 แต้ม = Max Mana เพิ่มเท่านี้ (flat)")]
+    public float manaPerIntelligence = 0.5f;
 
     [Header("Modifiers")]
     [Tooltip("modifier ถาวร/ทดสอบ ใส่ใน Inspector ได้ (ตอนเล่นแก้แล้วมีผลทันที) ของจากระบบอื่นใช้ AddModifier")]
@@ -41,6 +59,9 @@ public class PlayerStats : MonoBehaviour
     public float MaxHealth => Get(StatType.MaxHealth);
     public float MovementSpeed => Get(StatType.MovementSpeed);
     public float AttackSpeed => Get(StatType.AttackSpeed);
+    public float MaxMana => Get(StatType.MaxMana);
+    public float ManaRegen => Get(StatType.ManaRegen);
+    public float CarryCapacity => Get(StatType.CarryCapacity);
 
     // เปลี่ยนเมื่อไหร่ก็ได้ (ใส่/ถอด modifier, แก้ค่าฐาน) ระบบที่ใช้ค่า sheet ฟังตรงนี้
     public event System.Action<PlayerStats> Changed;
@@ -53,11 +74,13 @@ public class PlayerStats : MonoBehaviour
 
     private Health _health;
     private PlayerMovement _movement;
+    private Mana _mana;
 
     private void Awake()
     {
         _health = GetComponent<Health>();
         _movement = GetComponent<PlayerMovement>();
+        _mana = GetComponent<Mana>();
         ApplyToComponents(true);
     }
 
@@ -85,6 +108,12 @@ public class PlayerStats : MonoBehaviour
             StatType.MaxHealth => baseMaxHealth,
             StatType.MovementSpeed => baseMovementSpeed,
             StatType.AttackSpeed => baseAttackSpeed,
+            StatType.MaxMana => baseMaxMana,
+            StatType.ManaRegen => baseManaRegen,
+            StatType.CarryCapacity => baseCarryCapacity,
+            StatType.Strength => baseStrength,
+            StatType.Dexterity => baseDexterity,
+            StatType.Intelligence => baseIntelligence,
             StatType.AreaOfEffect => 1f,
             _ => 0f,
         };
@@ -94,6 +123,7 @@ public class PlayerStats : MonoBehaviour
             StatType.MaxHealth => Mathf.Max(1f, value),
             StatType.MovementSpeed => Mathf.Max(0f, value),
             StatType.AttackSpeed => Mathf.Max(0.1f, value),
+            StatType.MaxMana or StatType.ManaRegen or StatType.CarryCapacity => Mathf.Max(0f, value),
             _ => value,
         };
     }
@@ -106,6 +136,35 @@ public class PlayerStats : MonoBehaviour
             Rebuild();
             return _skillMods;
         }
+    }
+
+    // ผลรวม modifier ชนิดเดียว (หน้า Character Sheet แสดงค่าสกิลเช่น "+30% increased Damage")
+    // More = ตัวคูณรวมเป็น % (เช่น 1.2 × 1.1 -> 32)
+    public float Sum(StatType stat, ModifierType type)
+    {
+        Rebuild();
+        float total = type == ModifierType.More ? 1f : 0f;
+        foreach (var (m, level) in _all)
+        {
+            if (m.stat != stat || m.type != type) continue;
+            if (type == ModifierType.More) total *= 1f + m.Evaluate(level) * 0.01f;
+            else total += m.Evaluate(level);
+        }
+        return type == ModifierType.More ? (total - 1f) * 100f : total;
+    }
+
+    // ผลรวม Flat แบบช่วง (x = ต่ำสุด, y = สูงสุด) เช่น Added Damage 3-7
+    public Vector2 SumFlatRange(StatType stat)
+    {
+        Rebuild();
+        Vector2 total = Vector2.zero;
+        foreach (var (m, level) in _all)
+        {
+            if (m.stat != stat || m.type != ModifierType.Flat) continue;
+            total.x += m.Evaluate(level);
+            total.y += m.EvaluateMax(level);
+        }
+        return total;
     }
 
     // ---------- Internal ----------
@@ -127,6 +186,15 @@ public class PlayerStats : MonoBehaviour
         foreach (var m in modifiers) Add(m.modifier);
         foreach (var m in _runtime) Add(m.modifier);
 
+        // ค่าที่ได้จาก Str / Dex / Int (คิดจาก attribute สุดท้ายหลังรวม modifier ทุกแหล่งแล้ว)
+        float str = Mathf.Max(0f, StatMath.Apply(baseStrength, StatType.Strength, _all));
+        float dex = Mathf.Max(0f, StatMath.Apply(baseDexterity, StatType.Dexterity, _all));
+        float intel = Mathf.Max(0f, StatMath.Apply(baseIntelligence, StatType.Intelligence, _all));
+        if (lifePerStrength != 0f) Add(new StatModifier(StatType.MaxHealth, ModifierType.Flat, str * lifePerStrength));
+        if (damagePercentPerStrength != 0f) Add(new StatModifier(StatType.Damage, ModifierType.Increased, str * damagePercentPerStrength));
+        if (attackSpeedPercentPerDexterity != 0f) Add(new StatModifier(StatType.AttackSpeed, ModifierType.Increased, dex * attackSpeedPercentPerDexterity));
+        if (manaPerIntelligence != 0f) Add(new StatModifier(StatType.MaxMana, ModifierType.Flat, intel * manaPerIntelligence));
+
         void Add(StatModifier mod)
         {
             _all.Add((mod, 1));
@@ -140,6 +208,7 @@ public class PlayerStats : MonoBehaviour
         _applied = true;
         if (_health != null) _health.SetMaxHealth(MaxHealth, first);
         if (_movement != null) _movement.moveSpeed = MovementSpeed;
+        if (_mana != null) _mana.SetMax(MaxMana, ManaRegen, first);
     }
 
     [ContextMenu("Log Final Stats")]

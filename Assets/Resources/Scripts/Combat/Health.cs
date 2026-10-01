@@ -37,6 +37,8 @@ public class Health : MonoBehaviour
     public event System.Action<Health> Revived;
     // ทุกตัวในเกมโดนดาเมจ (ฝั่งภาพเช่นเลขดาเมจ subscribe ที่เดียว ไม่ต้องไล่ subscribe ทีละตัว) อย่าลืม -= ตอนเลิกใช้
     public static event System.Action<Health, DamageInfo> AnyDamaged;
+    // ทุกตัวในเกมตาย (เช่นให้ EXP คนฆ่า ดูจาก LastDamage.source) อย่าลืม -= ตอนเลิกใช้
+    public static event System.Action<Health> AnyDied;
 
     // ตัวละครที่ยังเปิดอยู่ทั้งหมด ให้ AI หาเป้าโดยไม่ต้องพึ่ง PlayerMovement.Instance (กฎข้อ 3)
     // ตอนนี้เป็นรายการรวมทั้ง process: ถ้าภายหลังรันหลาย map instance ใน process เดียวให้ย้ายไปเก็บใน context ของ instance
@@ -58,7 +60,11 @@ public class Health : MonoBehaviour
         LastDamage = info;
         Damaged?.Invoke(this, info);
         AnyDamaged?.Invoke(this, info);
-        if (Current <= 0f) Died?.Invoke(this);
+        if (Current <= 0f)
+        {
+            Died?.Invoke(this);
+            AnyDied?.Invoke(this);
+        }
         return true;
     }
 

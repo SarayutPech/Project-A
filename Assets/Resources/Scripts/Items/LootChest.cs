@@ -5,22 +5,18 @@ using UnityEngine;
 // ต้องมี Collider (เป้าคลิก) ระบบคลิก/ระยะอยู่ใน ClickInteractable
 public class LootChest : ClickInteractable
 {
-    [Tooltip("เว้นว่าง = หา/สร้าง LootStashWindow ใน scene เดียวกันให้เอง")]
+    [Tooltip("เว้นว่าง = ใช้ LootStashWindow ใน GameUI")]
     public LootStashWindow window;
     [Tooltip("แสดงตอนกล่องมีของรออยู่ เช่น แสง/ป้าย (เว้นว่างได้)")]
     public GameObject hasLootIndicator;
 
     private ILootStashService _stash;
 
-    protected override void Awake()
-    {
-        base.Awake();
-        _stash = GameServices.LootStash;
-    }
-
     protected override void OnEnable()
     {
         base.OnEnable();
+        // ดึงตอน OnEnable ไม่ใช่ Awake: recompile ระหว่างเล่น Unity เรียก OnEnable ใหม่แต่ไม่เรียก Awake (field ที่ไม่ serialize เป็น null)
+        _stash = GameServices.LootStash;
         _stash.Changed += OnStashChanged;
         RefreshIndicator();
     }
@@ -28,7 +24,7 @@ public class LootChest : ClickInteractable
     protected override void OnDisable()
     {
         base.OnDisable();
-        _stash.Changed -= OnStashChanged;
+        if (_stash != null) _stash.Changed -= OnStashChanged;
         if (window != null && window.Opener == this) window.Close();
     }
 
@@ -41,6 +37,7 @@ public class LootChest : ClickInteractable
     protected override void Interact()
     {
         if (window == null) window = LootStashWindow.FindOrCreate(this);
+        if (window == null) return;
         if (window.IsOpen && window.Opener == this) window.Close();
         else window.Open(this, _stash, GameServices.LocalPlayerId);
     }

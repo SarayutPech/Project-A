@@ -20,14 +20,19 @@ public class SkillSlotBinding
 }
 
 // ตัวรับ input สกิลของ local player (ฝั่ง client) -> ส่งเป็น "คำขอใช้สกิลช่อง N + ทิศ" ให้ PlayerCombat ตัดสิน (กฎข้อ 1, 4)
-// ปุ่มแต่ละ slot ตั้งใน Inspector (ช่อง Slot Bindings ลำดับเดียวกับ PlayerSkills.slots)
-// ค่าเริ่มต้น: slot 1 = คลิกซ้าย / RT, slot 2 = คลิกขวา / LT, slot 3 = Q / RB, slot 4 = E / LB
+// ปุ่ม 1 ชุด = Slot Bindings (ค่าเริ่มต้น 5 ปุ่ม) กด Alternate Set ค้าง (Ctrl) = ปุ่มเดิมแต่ใช้สกิลชุดที่ 2
+//   ปุ่มที่ i -> PlayerSkills.slots[i] / ค้าง Ctrl -> slots[i + จำนวนปุ่ม] (5 ปุ่ม = ช่อง 0-4 และ 5-9)
+// ค่าเริ่มต้น: คลิกซ้าย / คลิกขวา / Q / E / R (gamepad RT / LT / RB / LB / Y)
 // ทิศ: เมาส์/คีย์บอร์ด = หันไปทางเคอร์เซอร์บนระนาบพื้นระดับเท้า / gamepad = ทางที่หันอยู่
 // ภายหลังการตั้งปุ่มเป็น setting ของเครื่องผู้เล่น (เซฟ binding override ลงเครื่อง) ไม่ต้องส่งไป server
 [RequireComponent(typeof(PlayerCombat))]
 public class PlayerAttackInput : MonoBehaviour
 {
+    public const int DefaultSlotsPerSet = 5;
+
     public List<SkillSlotBinding> slotBindings = DefaultBindings();
+    [Tooltip("กดค้าง = ใช้สกิลชุดที่ 2 (ปล่อย = กลับชุดแรก)")]
+    public InputAction alternateSetAction = new InputAction("Alternate Skill Set", InputActionType.Button, "<Keyboard>/ctrl");
 
     [Tooltip("กดค้าง = ใช้ซ้ำเมื่อท่าเดิมจบ (สกิลที่เปิด Channel จะวนท่าเดิมไปเรื่อยๆ แทน)")]
     public bool holdToRepeat = true;
@@ -40,26 +45,49 @@ public class PlayerAttackInput : MonoBehaviour
 
     private PlayerCombat _combat;
 
+
     private static List<SkillSlotBinding> DefaultBindings() => new List<SkillSlotBinding>
     {
         new SkillSlotBinding("Skill 1", "<Mouse>/leftButton", "<Gamepad>/rightTrigger"),
         new SkillSlotBinding("Skill 2", "<Mouse>/rightButton", "<Gamepad>/leftTrigger"),
         new SkillSlotBinding("Skill 3", "<Keyboard>/q", "<Gamepad>/rightShoulder"),
         new SkillSlotBinding("Skill 4", "<Keyboard>/e", "<Gamepad>/leftShoulder"),
+        new SkillSlotBinding("Skill 5", "<Keyboard>/r", "<Gamepad>/buttonNorth"),
     };
+
+    // จำนวนปุ่มต่อชุด (= ช่องบน HUD) / ชุดที่กำลังใช้ (0 = ชุดแรก, 1 = ค้าง Ctrl) ให้ HUD อ่านไปแสดง
+    public int SlotsPerSet => slotBindings.Count;
+    public bool AlternateSetHeld => alternateSetAction != null && alternateSetAction.IsPressed();
+    public int ActiveSet => AlternateSetHeld ? 1 : 0;
+    public int SlotIndex(int button, int set) => button + set * SlotsPerSet;
+
+    // ชื่อปุ่มสำหรับ HUD (เช่น "LMB", "Q") ตามอุปกรณ์ที่กำหนด (null = binding แรก)
+    public string KeyLabel(int button)
+    {
+        if (button < 0 || button >= slotBindings.Count || slotBindings[button].action == null) return "";
+        return slotBindings[button].action.GetBindingDisplayString(0, InputBinding.DisplayStringOptions.DontIncludeInteractions);
+    }
 
     private void Reset() => slotBindings = DefaultBindings();
 
-    private void Awake() => _combat = GetComponent<PlayerCombat>();
+    private void Awake()
+    {
+        _combat = GetComponent<PlayerCombat>();
+        // ข้อมูลเก่าที่ตั้งไว้ไม่ครบ 5 ปุ่ม -> เติมปุ่มเริ่มต้นที่ขาด
+        var defaults = DefaultBindings();
+        for (int i = slotBindings.Count; i < defaults.Count; i++) slotBindings.Add(defaults[i]);
+    }
 
     private void OnEnable()
     {
         foreach (var b in slotBindings) b.action?.Enable();
+        alternateSetAction?.Enable();
     }
 
     private void OnDisable()
     {
         foreach (var b in slotBindings) b.action?.Disable();
+        alternateSetAction?.Disable();
     }
 
     private void Update()
@@ -83,6 +111,7 @@ public class PlayerAttackInput : MonoBehaviour
 
     private bool TryUse(Camera cam, bool repeat)
     {
+        int set = ActiveSet;
         for (int i = 0; i < slotBindings.Count; i++)
         {
             InputAction a = slotBindings[i].action;
@@ -90,13 +119,17 @@ public class PlayerAttackInput : MonoBehaviour
             bool triggered = repeat ? a.IsPressed() : a.WasPressedThisFrame();
             if (!triggered) continue;
             if (ignoreUiAndPortalClicks && IsMouse(a) && IsClickOnUiOrInteractable(cam)) continue;
+            if (LocalInputGate.KeyboardCaptured && a.activeControl != null && a.activeControl.device is Keyboard) continue;
+            if (LocalInputGate.PointerCaptured && IsMouse(a)) continue;
 
-            if (_combat.RequestAttack(i, Aim(a, cam), a.IsPressed(), AimPoint(a, cam))) return true;
+            if (_combat.RequestAttack(SlotIndex(i, set), Aim(a, cam), a.IsPressed(), AimPoint(a, cam))) return true;
         }
         return false;
     }
 
-    private InputAction ActionOf(int slot) => slot >= 0 && slot < slotBindings.Count ? slotBindings[slot].action : null;
+    // ปุ่มของ slot (ทั้ง 2 ชุดใช้ปุ่มเดียวกัน) -> ปล่อย Ctrl กลางท่า channel ก็ยังค้างต่อได้ตราบที่ยังกดปุ่มเดิม
+    private InputAction ActionOf(int slot) =>
+        slot >= 0 && slotBindings.Count > 0 ? slotBindings[slot % slotBindings.Count].action : null;
 
     private static bool IsMouse(InputAction a) => a.activeControl != null && a.activeControl.device is Mouse;
     private static bool IsGamepad(InputAction a) => a.activeControl != null && a.activeControl.device is Gamepad;

@@ -26,23 +26,6 @@ public interface ILootStashService
     int Clear(string ownerId);
 }
 
-// ตัวกลางหา service (ตอนนี้ตัวเดียวทั้ง process) เปลี่ยน implementation ได้ก่อนเริ่มเกม เช่น GameServices.LootStash = new BackendLootStash(...)
-public static class GameServices
-{
-    // id ของผู้เล่นที่เครื่องนี้ควบคุม ภายหลังทำ Netcode/บัญชี ใช้ account id / clientId แทน
-    public const string LocalPlayerId = "local";
-
-    private static ILootStashService _lootStash;
-    public static ILootStashService LootStash
-    {
-        get => _lootStash ??= new LocalLootStash();
-        set => _lootStash = value;
-    }
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetServices() => _lootStash = null;
-}
-
 // เก็บในเครื่องเป็น JSON (persistentDataPath/loot_stash.json) เซฟทุกครั้งที่เปลี่ยน (ของน้อย ไฟล์เล็ก)
 public class LocalLootStash : ILootStashService
 {

@@ -1,0 +1,53 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cdac632ebdfd0f54e806e1d255ae8d02, type: 3}
+  m_Name: ActiveGem_Recall
+  m_EditorClassIdentifier: Assembly-CSharp::ActiveSkillGem
+  id: recall
+  displayName: Recall
+  description: Opens a portal back to the Hideout. Cannot be used in the Hideout.
+  icon: {fileID: 0}
+  rarity: 0
+  maxStack: 1
+  weight: 1
+  gemColor: {r: 0.45, g: 0.75, b: 1, a: 1}
+  maxLevel: 1
+  animation: {fileID: -203655887218126122, guid: 9995cc3036e79444689b92789a48f6ba, type: 3}
+  animationVariants: []
+  blendAnimation: {fileID: 0}
+  blendWeightRange: {x: 0.1, y: 1}
+  mirror: 0
+  upperBodyOnly: 1
+  duration: 0.8
+  attackSpeed: 1
+  cooldown: 3
+  areaOfEffect: 1
+  teleportToTarget: 0
+  teleportRange: 12
+  teleportLandingGap: 0.3
+  avoidSameTarget: 1
+  shadowCloneCount: 0
+  shadowClonesOnlyWhileHeld: 1
+  shadowCloneDistance: 1.3
+  shadowCloneAngle: 55
+  shadowCloneDamage: 0.35
+  baseDamage: 0
+  damagePerLevel: 0
+  hitboxes: []
+  moveSlowPercent: 100
+  channel: 0
+  loopStart: 0.25
+  loopEnd: 0.75
+  maxChannelTime: 4
+  spawnOnCast: {fileID: 3108726852480893148, guid: 1e03fc450638794459b3b6c6af2f7870, type: 3}
+  spawnDistance: 2.5
+  singleSpawnInstance: 1

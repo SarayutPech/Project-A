@@ -13,6 +13,12 @@ public enum StatType
     // ---- ของตัวละคร (stat sheet เท่านั้น support gem ใส่ไปก็ไม่มีผล) ----
     MaxHealth = 10,
     MovementSpeed = 11,
+    MaxMana = 12,
+    ManaRegen = 13,           // มานาฟื้นต่อวินาที
+    CarryCapacity = 14,       // น้ำหนักที่กระเป๋ารับได้ (Byte)
+    Strength = 15,            // Str: +Life / +Damage (อัตราใน PlayerStats)
+    Dexterity = 16,           // Dex: +Attack Speed
+    Intelligence = 17,        // Int: +Mana
 }
 
 public enum ModifierType
@@ -32,6 +38,8 @@ public struct StatModifier
     public float value;
     [Tooltip("เพิ่มต่อ level ของ gem (level 1 = value)")]
     public float valuePerLevel;
+    [Tooltip("ใช้กับ Damage แบบ Flat เท่านั้น: ดาเมจสูงสุด (value = ต่ำสุด) เช่น value 3 / valueMax 7 = Adds 3-7 Damage\n0 หรือน้อยกว่า value = ค่าเดียว")]
+    public float valueMax;
 
     public StatModifier(StatType stat, ModifierType type, float value, float valuePerLevel = 0f)
     {
@@ -39,30 +47,29 @@ public struct StatModifier
         this.type = type;
         this.value = value;
         this.valuePerLevel = valuePerLevel;
+        valueMax = 0f;
     }
 
     public float Evaluate(int level) => value + valuePerLevel * (Mathf.Max(1, level) - 1);
+
+    // ค่าสูงสุดของช่วง (Flat Damage แบบ min-max) ค่าอื่น = เท่ากับ Evaluate
+    public float EvaluateMax(int level) => Mathf.Max(value, valueMax) + valuePerLevel * (Mathf.Max(1, level) - 1);
+    public bool IsRange => valueMax > value;
+
+    public static StatModifier FlatRange(StatType stat, float min, float max, float perLevel = 0f) =>
+        new StatModifier(stat, ModifierType.Flat, min, perLevel) { valueMax = max };
 }
 
-// gem 1 ชนิด (ScriptableObject = ข้อมูลกลาง ไม่ใช่ของที่ผู้เล่นถือ) ของที่ผู้เล่นถือจริงคือ GemInstance (ชนิด + level)
-// id ใช้เซฟ/ส่งผ่านเน็ต/เก็บใน DB แทนการอ้าง asset ตรงๆ (กฎข้อ 7)
-public abstract class SkillGem : ScriptableObject
+// gem 1 ชนิด = ไอเทมชนิดหนึ่ง (id / ชื่อ / คำอธิบาย / ไอคอน / น้ำหนัก มาจาก ItemDefinition) -> อยู่ในกระเป๋าได้ ดรอปได้
+// ของที่ผู้เล่นถือจริงคือ ItemInstance ในกระเป๋า (มี level) ใส่ช่องสกิลแล้ว PlayerSkills ใช้เป็น GemInstance (ชนิด + level)
+// asset อยู่ใต้ Gameobject/ScriptAbleObject/Skills (ItemDatabase โหลดโฟลเดอร์นี้ด้วย) id ต้องไม่ซ้ำกับไอเทมอื่น
+public abstract class SkillGem : ItemDefinition
 {
-    [Tooltip("รหัสคงที่ ใช้เซฟ/sync (ห้ามเปลี่ยนหลังมีผู้เล่นใช้แล้ว)")]
-    public string id;
-    public string displayName;
-    [TextArea(2, 4)] public string description;
     public Color gemColor = Color.red;
-    public Sprite icon;
     [Min(1)] public int maxLevel = 20;
 
-#if UNITY_EDITOR
-    protected virtual void OnValidate()
-    {
-        if (string.IsNullOrEmpty(id)) id = name;
-        if (string.IsNullOrEmpty(displayName)) displayName = name;
-    }
-#endif
+    // gem หนัก 1 Byte (ค่าเริ่มต้นของ asset ใหม่และ asset เก่าที่ยังไม่มี field น้ำหนัก)
+    protected SkillGem() => weight = 1;
 }
 
 // gem ที่ผู้เล่นถือ/ใส่ช่อง: ชนิด + level

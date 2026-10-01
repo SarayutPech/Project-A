@@ -20,6 +20,13 @@ GameObject:
   - component: {fileID: 1897609257874777050}
   - component: {fileID: 3016516361691051616}
   - component: {fileID: 6930004257101281854}
+  - component: {fileID: 1765883172779605296}
+  - component: {fileID: 245124252923960189}
+  - component: {fileID: 45834245160619161}
+  - component: {fileID: 8670020218676700016}
+  - component: {fileID: 1668908651850370539}
+  - component: {fileID: 8389993509653308731}
+  - component: {fileID: 787367676262325106}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -230,6 +237,10 @@ MonoBehaviour:
   hitMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  teleportGroundMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  teleportMaxStep: 0.5
 --- !u!114 &8669375049053260422
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -365,6 +376,24 @@ MonoBehaviour:
         m_Flags: 0
       m_Flags: 0
       m_Priority: 0
+  alternateSetAction:
+    m_Name: Alternate Skill Set
+    m_Type: 1
+    m_ExpectedControlType: 
+    m_Id: 898ffdc4-14a7-4183-be56-da956627699b
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: f6c6cb73-b461-4d59-91ad-61ed8c56ccde
+      m_Path: <Keyboard>/ctrl
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Alternate Skill Set
+      m_Flags: 0
+    m_Flags: 0
+    m_Priority: 0
   holdToRepeat: 1
   aimAtCursor: 1
   aimCamera: {fileID: 0}
@@ -442,6 +471,96 @@ MonoBehaviour:
       level: 1
     - gem: {fileID: 0}
       level: 1
+  - name: Skill 5
+    activeGem:
+      gem: {fileID: 0}
+      level: 1
+    supportGems:
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+  - name: Skill 6
+    activeGem:
+      gem: {fileID: 0}
+      level: 1
+    supportGems:
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+  - name: Skill 7
+    activeGem:
+      gem: {fileID: 0}
+      level: 1
+    supportGems:
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+  - name: Skill 8
+    activeGem:
+      gem: {fileID: 0}
+      level: 1
+    supportGems:
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+  - name: Skill 9
+    activeGem:
+      gem: {fileID: 0}
+      level: 1
+    supportGems:
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+  - name: Skill 10
+    activeGem:
+      gem: {fileID: 0}
+      level: 1
+    supportGems:
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
+    - gem: {fileID: 0}
+      level: 1
 --- !u!114 &6930004257101281854
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -457,7 +576,115 @@ MonoBehaviour:
   baseMaxHealth: 100
   baseMovementSpeed: 5
   baseAttackSpeed: 3
+  baseMaxMana: 50
+  baseManaRegen: 2
+  baseCarryCapacity: 1024
+  baseStrength: 10
+  baseDexterity: 10
+  baseIntelligence: 10
+  lifePerStrength: 0.5
+  damagePercentPerStrength: 0.2
+  attackSpeedPercentPerDexterity: 0.2
+  manaPerIntelligence: 0.5
   modifiers: []
+--- !u!114 &1765883172779605296
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 83ffe728578cce9479070fa89684ca4e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Mana
+  maxMana: 50
+  regenPerSecond: 2
+--- !u!114 &245124252923960189
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f2e070b9a4e20364e8b1a9c207944aad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerConsumables
+--- !u!114 &45834245160619161
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8820723c95a7a9e4a905e324a37ec057, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerEquipment
+  startingEquipment: []
+--- !u!114 &8670020218676700016
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c9f47505d18c70f48b13c02c4c6f6716, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerInventory
+  startingItems: []
+--- !u!114 &1668908651850370539
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43e60c367793d894b81a2efe8348d47a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerExperience
+  maxLevel: 100
+  baseExpToLevel: 100
+  expGrowth: 1.6
+  healthPerLevel: 8
+  manaPerLevel: 4
+  defaultExpPerKill: 10
+  eliteExpMultiplier: 3
+--- !u!114 &8389993509653308731
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 77cbe0d3e7177fa46aa35f5af3cc6c0b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LocalPlayerUI
+  prefab: {fileID: 0}
+--- !u!114 &787367676262325106
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9129803999362386158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 37b091227e3deb14d9fe0f9a3129c8e0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerPassives
+  tree: {fileID: 0}
+  bonusPoints: 0
 --- !u!1001 &580939129535964330
 PrefabInstance:
   m_ObjectHideFlags: 0

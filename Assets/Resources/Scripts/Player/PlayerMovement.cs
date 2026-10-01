@@ -59,7 +59,7 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
     [Header("Input Keys (Keyboard)")]
     public Key jumpKey = Key.Space;
     public Key sprintKey = Key.LeftShift;
-    public Key dashKey = Key.LeftCtrl;
+    public Key dashKey = Key.LeftAlt; // Ctrl ใช้สลับชุดสกิล (PlayerAttackInput)
 
     [Header("Ground Check")]
     [Tooltip("layer ที่นับเป็นพื้น (ตัว player เองถูกข้ามให้อัตโนมัติ)")]
@@ -801,7 +801,7 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
     {
         Vector2 value = Vector2.zero;
 
-        var keyboard = Keyboard.current;
+        var keyboard = LocalInputGate.Keyboard;
         if (keyboard != null)
         {
             if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) value.y += 1f;
@@ -818,7 +818,7 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
 
     private bool IsSprinting()
     {
-        var keyboard = Keyboard.current;
+        var keyboard = LocalInputGate.Keyboard;
         if (keyboard != null && keyboard[sprintKey].isPressed) return true;
 
         var gamepad = Gamepad.current;
@@ -827,7 +827,7 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
 
     private bool JumpHeld()
     {
-        var keyboard = Keyboard.current;
+        var keyboard = LocalInputGate.Keyboard;
         if (keyboard != null && keyboard[jumpKey].isPressed) return true;
 
         var gamepad = Gamepad.current;
@@ -836,7 +836,7 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
 
     private bool JumpPressedThisFrame()
     {
-        var keyboard = Keyboard.current;
+        var keyboard = LocalInputGate.Keyboard;
         if (keyboard != null && keyboard[jumpKey].wasPressedThisFrame) return true;
 
         var gamepad = Gamepad.current;
@@ -869,7 +869,7 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
 
     private bool DashHeld()
     {
-        var keyboard = Keyboard.current;
+        var keyboard = LocalInputGate.Keyboard;
         if (keyboard != null && keyboard[dashKey].isPressed) return true;
 
         var gamepad = Gamepad.current;
@@ -878,7 +878,7 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
 
     private bool DashPressedThisFrame()
     {
-        var keyboard = Keyboard.current;
+        var keyboard = LocalInputGate.Keyboard;
         if (keyboard != null && keyboard[dashKey].wasPressedThisFrame) return true;
 
         var gamepad = Gamepad.current;
