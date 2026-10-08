@@ -18,6 +18,7 @@
   - `animationVariants` = random move, never the same twice in a row; `mirror` = Alternate / Random
   - `upperBodyOnly` = plays on Animator layer `UpperBody` with mask `3DModel/Player/UpperBody.mask`, legs follow locomotion
   - channel + several variants: re-pick every loop; `blendAnimation` blends over the main move (attack state is a blend tree: move slot + `AttackBlendSlot`)
+  - `faceAimWhileActive` = the body turns to the aim direction (cursor) for the whole move and ignores WASD facing (hitboxes always followed the aim; this makes the visible facing match). `PlayerCombat` calls `PlayerMovement.SetAimFacing(Attack.AimDirection)` on start and on every `UpdateHeld` while held, `ClearAimFacing()` when the move ends/cancels; `PlayerMovement.aimFacingSpeed` (deg/s) smooths the turn. Input still lives in `PlayerAttackInput` only. Enabled on **Punch**.
   - `areaOfEffect` = base area (radius × √area); `teleportToTarget` = Flicker Strike; `shadowCloneCount` = extra clone strikes while held
   - `spawnOnCast` = object spawned in front of the player when the move starts (server, `PlayerCombat.SpawnOnCast`, one per gem if `singleSpawnInstance`). A `ScenePortal` that leads to the current scene is rejected before the move starts. **Recall** gem (`ActiveGem_Recall`, id `recall`) = no hitboxes, spawns `WarpToHideout` (unusable in the Hideout).
 

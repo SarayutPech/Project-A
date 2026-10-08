@@ -24,6 +24,8 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
     [Min(0f)] public float airAcceleration = 20f;
     [Tooltip("ความเร็วหันตัวตามทิศที่เดิน")]
     [Min(0f)] public float rotationSpeed = 12f;
+    [Tooltip("ความเร็วหันตามทิศเล็งระหว่างท่าที่เปิด Face Aim While Active (องศา/วินาที)")]
+    [Min(0f)] public float aimFacingSpeed = 900f;
 
     [Header("Jump")]
     [Tooltip("ความสูงกระโดด (world unit) คำนวณแรงจาก Physics.gravity ให้เอง")]
@@ -204,6 +206,18 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
         // ตั้งตรงแทน MoveRotation ให้ transform.forward เปลี่ยนทันที (ท่าโจมตีเริ่มหันถูกทาง)
         _body.rotation = Quaternion.LookRotation(direction);
     }
+
+    // ระหว่างท่าที่ตั้งให้หันตามทิศเล็ง (เช่น Punch): หันไปทางนี้เสมอ ไม่หันตามทิศเดิน (ระบบโจมตีเป็นคนส่งทิศมา ไม่ได้อ่านเมาส์ที่นี่)
+    public void SetAimFacing(Vector3 direction)
+    {
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.0001f) return;
+        _aimFacing = direction.normalized;
+    }
+
+    // เลิกบังคับทิศ -> กลับไปหันตามการเดินตามปกติ
+    public void ClearAimFacing() => _aimFacing = null;
+    private Vector3? _aimFacing;
 
     // Singleton: player มีได้ตัวเดียวในฉาก ตัวที่เกินมาจะถูกลบทิ้ง
     public static PlayerMovement Instance { get; private set; }
@@ -563,7 +577,13 @@ public class PlayerMovement : MonoBehaviour, ICharacterLocomotion, ISkillMover
             _body.AddForce(Physics.gravity * (fallGravityMultiplier - 1f), ForceMode.Acceleration);
         }
 
-        if (move.sqrMagnitude > 0.0001f && !_actionLocked)
+        if (_aimFacing.HasValue && !_actionLocked)
+        {
+            // ท่าที่บังคับหันตามทิศเล็ง: หมุนเข้าหาทิศนั้นเร็วๆ (ไม่ตามทิศเดิน)
+            Quaternion aimRot = Quaternion.LookRotation(_aimFacing.Value);
+            _body.MoveRotation(Quaternion.RotateTowards(_body.rotation, aimRot, aimFacingSpeed * Time.fixedDeltaTime));
+        }
+        else if (move.sqrMagnitude > 0.0001f && !_actionLocked)
         {
             Quaternion targetRot = Quaternion.LookRotation(move);
             _body.MoveRotation(Quaternion.Slerp(_body.rotation, targetRot, rotationSpeed * Time.fixedDeltaTime));

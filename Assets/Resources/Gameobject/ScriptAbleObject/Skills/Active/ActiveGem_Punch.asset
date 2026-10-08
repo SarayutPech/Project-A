@@ -26,11 +26,11 @@ MonoBehaviour:
   - {fileID: -203655887218126122, guid: 9995cc3036e79444689b92789a48f6ba, type: 3}
   - {fileID: -203655887218126122, guid: 1d3ae46faddcb6449bd50c4aecc44220, type: 3}
   - {fileID: -203655887218126122, guid: d209c135895d71b4b9615bf05ca7d8eb, type: 3}
-  blendAnimation: {fileID: -203655887218126122, guid: e91754d677528c1439334854a228f597, type: 3}
+  blendAnimation: {fileID: -203655887218126122, guid: 1d3ae46faddcb6449bd50c4aecc44220, type: 3}
   blendWeightRange: {x: 0.1, y: 1}
   mirror: 1
-  upperBodyOnly: 1
-  duration: 1.3
+  upperBodyOnly: 0
+  duration: 0.8
   attackSpeed: 1
   cooldown: 0.1
   areaOfEffect: 1
@@ -58,6 +58,7 @@ MonoBehaviour:
     arcAngle: 100
     damageMultiplier: 1
   moveSlowPercent: 0
+  faceAimWhileActive: 1
   channel: 1
   loopStart: 0.25
   loopEnd: 0.75

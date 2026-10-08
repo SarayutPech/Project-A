@@ -13,6 +13,8 @@
 
 ## Camera (`Scripts/Camera/`)
 - `IsometricCameraController`.
+- `CinematicCameraController` (วางบน Camera เดียวกับ iso, ฝั่งภาพล้วน): ทับท่ากล้องหลัง iso (ExecutionOrder 200) แล้วเฟดเข้า/ออกด้วย `blendTime`. F8 = เปิด/ปิด, F9 = สลับ shot (`shots[]`: pitch/yaw/distance/fov/ortho/orbit). โฟกัส player + ดึงจุดมองไปหาศัตรูใกล้ (`Health.All`, `combatRadius`, `focusBias`), ซูมออกตาม `spreadZoom`, ตีโดน/ฆ่าได้ zoom kick + shake (`Health.AnyDamaged`, เช็ค `LastDamage.source` เป็นลูกของ target). ปุ่มเป็น dev tool ไม่ลง `KeyBindings`.
+  - `CinematicCameraBootstrap` (static, RuntimeInitializeOnLoad + sceneLoaded) ใส่ component ให้กล้องที่มี `IsometricCameraController` ทุกฉากเอง (CharacterSelect ไม่มี iso = ไม่ใส่) ไม่ต้องวางมือ. `CinematicCameraController.Instance` = ตัวเดียว (ตัวซ้ำทำลายตัวเอง) + จำสถานะเปิด/ปิดข้ามฉาก. ไม่ DontDestroyOnLoad กล้อง เพราะ iso ผูกกับ map ของแต่ละฉาก.
 - `OcclusionOutlineController`: objects between camera and player fade / outline / cut out. Per material slot mode Outline / Fade / Cutout. Cutout = `Shaders/OcclusionCutout.hlsl` (Shader Graph custom function, opaque + alpha clip, dithered circle around the player, globals `_OcclusionCutCenter/Radius/Softness`).
 
 ## Scene flow (`Scripts/SceneFlow/`)

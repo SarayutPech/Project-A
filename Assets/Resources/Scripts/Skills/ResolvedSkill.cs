@@ -36,6 +36,7 @@ public class ResolvedSkill
     public int AnimationCount => Gem.AnimationCount;
     public SkillMirrorMode Mirror => Gem.mirror;
     public bool UpperBodyOnly => Gem.upperBodyOnly;
+    public bool FaceAimWhileActive => Gem.faceAimWhileActive;
     public bool TeleportToTarget => Gem.teleportToTarget;
     public float TeleportRange => Gem.teleportRange;
     public float TeleportLandingGap => Gem.teleportLandingGap;

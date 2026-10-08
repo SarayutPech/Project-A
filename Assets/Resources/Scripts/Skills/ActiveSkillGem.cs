@@ -76,6 +76,8 @@ public class ActiveSkillGem : SkillGem
     [Header("Movement ระหว่างใช้")]
     [Tooltip("ลดความเร็วเดินกี่ % ระหว่างท่า (0 = เดินปกติ, 100 = ยืนนิ่ง) support gem บวกเพิ่มได้")]
     [Range(0f, 100f)] public float moveSlowPercent = 40f;
+    [Tooltip("หันตัวไปทางทิศเล็ง (เมาส์) ตลอดท่า แม้กด WASD เดินอยู่ตัวก็ไม่หันตามทิศเดิน (เช่น Punch กดค้างแล้วลากเมาส์ ตัวหันตามเมาส์)\nปิด = ตัวหันตามการเดินได้ตามปกติ (hitbox ยังออกตามทิศเล็ง)")]
+    public bool faceAimWhileActive = false;
 
     [Header("Channel (กดค้าง = วนท่าต่อเนื่อง)")]
     [Tooltip("กดค้างแล้ววนช่วง Loop Start-End ของท่าไปเรื่อยๆ (hitbox ในช่วงนั้นโดนซ้ำทุกรอบ) ปล่อยแล้วเล่นท่าที่เหลือจนจบ\nถ้ามีหลายท่า (Animation Variants) / Mirror ทุกรอบที่วนจะสุ่มท่าใหม่ + สลับข้าง")]

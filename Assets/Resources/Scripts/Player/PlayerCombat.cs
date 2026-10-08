@@ -83,8 +83,15 @@ public class PlayerCombat : MonoBehaviour
         if (!Attack.IsAttacking) return;
         Attack.SetHeld(held && !Health.IsDead);
         if (aimPoint.HasValue && !IsFinite(aimPoint.Value)) aimPoint = null;
-        if (held && IsFinite(aimDirection)) Attack.SetAim(aimDirection, aimPoint);
+        if (held && IsFinite(aimDirection))
+        {
+            Attack.SetAim(aimDirection, aimPoint);
+            // ท่าที่เปิด Face Aim While Active (เช่น Punch): ตัวหันตามทิศเล็งล่าสุด ไม่หันตามปุ่มเดิน
+            if (FacesAim(Attack.ActiveSkill)) _movement.SetAimFacing(Attack.AimDirection);
+        }
     }
+
+    private static bool FacesAim(ResolvedSkill skill) => skill != null && skill.FaceAimWhileActive;
 
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.x) && float.IsFinite(v.y) && float.IsFinite(v.z);
 
@@ -93,12 +100,14 @@ public class PlayerCombat : MonoBehaviour
     {
         _movement.ActionSpeedMultiplier = attack.MoveSpeedMultiplier;
         _movement.DashBlocked = !allowDashWhileAttacking;
+        if (FacesAim(attack.ActiveSkill)) _movement.SetAimFacing(attack.AimDirection);
         SpawnOnCast(attack.ActiveSkill != null ? attack.ActiveSkill.Gem : null);
     }
 
     private void OnAttackFinished(MeleeAttack attack)
     {
         _movement.DashBlocked = false;
+        _movement.ClearAimFacing();
         if (Health.IsDead) return; // ตายกลางท่า -> ยังล็อกต่อ
         _movement.ActionSpeedMultiplier = 1f;
     }
