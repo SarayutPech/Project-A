@@ -1,0 +1,114 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1898134850469109639
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5867892953558994494}
+  - component: {fileID: 7109945776971533814}
+  - component: {fileID: 4497167449125067578}
+  - component: {fileID: 8271277610977811064}
+  - component: {fileID: 8595261783276880277}
+  - component: {fileID: 7357950926436179267}
+  m_Layer: 0
+  m_Name: MapGenaratorManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5867892953558994494
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1898134850469109639}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 462, y: 0, z: -30}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &7109945776971533814
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1898134850469109639}
+  m_Mesh: {fileID: 0}
+--- !u!114 &4497167449125067578
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1898134850469109639}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5a3492b4e88694f408787ba6dcaf15ac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ProceduralWanderingGround
+  config: {fileID: 11400000, guid: ddf560bd52532e842b709cafec82b130, type: 2}
+  useFixedSeed: 0
+  seed: 1422429419
+--- !u!114 &8271277610977811064
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1898134850469109639}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf9c748023923824484128d03fef0189, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerSpawner
+  playerPrefab: {fileID: 9129803999362386158, guid: 3ace7ebc09c2c2a4cb14c16ffaf26ada, type: 3}
+--- !u!114 &8595261783276880277
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1898134850469109639}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eac36c56747b770499565bf27317af38, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MapNavGraphGizmos
+  generator: {fileID: 4497167449125067578}
+  drawWalkEdges: 1
+  drawJumpEdges: 1
+  drawNodes: 0
+  onlyWhenSelected: 1
+  heightOffset: 0.15
+  walkColor: {r: 0.2, g: 0.9, b: 0.3, a: 0.6}
+  jumpUpColor: {r: 1, g: 0.85, b: 0.1, a: 1}
+  jumpDownColor: {r: 0.2, g: 0.7, b: 1, a: 1}
+  waterNodeColor: {r: 0.1, g: 0.3, b: 1, a: 0.8}
+--- !u!114 &7357950926436179267
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1898134850469109639}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2ec3f069b9d08d04696bcf49778806b8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MapStaticBatcher
+  generator: {fileID: 0}
+  buildAnimator: {fileID: 0}
+  batchGround: 1
+  batchUnderside: 1
+  batchWater: 1
+  batchScatter: 1

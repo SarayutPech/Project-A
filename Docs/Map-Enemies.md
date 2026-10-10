@@ -17,3 +17,9 @@
 - `EnemyPack`: members wander around a shared centre, one spotting the player alerts the rest.
 - `EnemyRank.MakeElite(EliteSettings)`: size / HP / damage / attack speed; `EliteGlow` = visual.
 - Enemy prefab: `Gameobject/Prefab/Enemy.prefab` (has `LootDropper`, see Items-Loot.md).
+
+## Smooth slopes (`Config.smoothSlopes`)
+- Optional mode that replaces terrace steps / cliffs / ramps with a continuous height field, and rounds the island outline. Off by default; `ThunderBiome` has it on.
+- Height: `TerraceLayout.BuildSmooth` (called from `BuildSmoothHeightField` in `ProceduralMapGenerator.Smooth.cs`) blurs the per-cell level heights on a sub-cell grid. Blur width per point = `levelHeight / tan(angle)` with the angle taken from hash noise between `slopeMinAngle`..`slopeMaxAngle`, then a relaxation pass clamps the slope to the max angle. Pond footprint cells stay exactly at their level. All height queries (`HeightAt`, `HeightAtWorld`, nav, object placement) go through it; `IsRamp` / `IsRampAccess` return false in this mode.
+- Shape: `BuildSmoothSurface` runs marching squares on the blurred occupancy (`edgeRoundness`), writes the same `_groundChunks` (with analytic normals) and a rock skirt into `_cliffChunks`. The grid resolution equals `holeMeshResolution` when ponds exist (so pond rims line up), else `slopeResolution`.
+- Not yet smoothed: the invisible boundary walls (`MapBoundaryBuilder`) and the island underside still follow the original cell outline.

@@ -77,6 +77,30 @@ public class ProceduralMapConfig : ScriptableObject
     [Min(2)] public int terraceRegionSize = 30;
     [Tooltip("โอกาสที่ที่ราบติดกันอยู่ชั้นเดียวกัน (ไม่มีหน้าผาคั่น)")]
     [Range(0f, 1f)] public float terraceFlatChance = 0.3f;
+    [Header("Smooth Slopes (เนินต่อเนื่อง + ขอบเกาะโค้งมน)")]
+    [Tooltip("เปิด = แทนขั้นบันได/หน้าผา/ทางลาดด้วยพื้นลาดเอียงต่อเนื่อง และทำขอบเกาะให้โค้งมน (ยังใช้ Terrace Levels/Height เป็นความสูงของแต่ละภูมิภาค)")]
+    public bool smoothSlopes = false;
+    [Tooltip("มุมลาดที่เกือบราบที่สุด (องศา) ลาดแต่ละจุดสุ่มมุมในช่วง min..max จาก noise -> ค่าต่ำ = เนินกว้างนุ่ม")]
+    [Range(2f, 60f)] public float slopeMinAngle = 12f;
+    [Tooltip("มุมลาดชันที่สุด (องศา) บังคับไม่ให้ชันกว่านี้ ตั้งให้ไม่เกินมุมที่ผู้เล่น/ศัตรูเดินขึ้นได้")]
+    [Range(2f, 60f)] public float slopeMaxAngle = 30f;
+    [Tooltip("ความถี่ของ noise ที่สุ่มมุมลาด (1 / world unit) ยิ่งน้อย = บริเวณที่ชัน/ลาดเท เป็นผืนใหญ่ขึ้น")]
+    [Min(0.001f)] public float slopeNoiseScale = 0.08f;
+    [Tooltip("จำนวนช่องย่อยต่อด้านของ 1 cell (ยิ่งมากยิ่งเนียน แต่ mesh หนักขึ้น) ถ้ามีบ่อ (Noise Holes) จะใช้ Hole Mesh Resolution แทน")]
+    [Range(2, 8)] public int slopeResolution = 4;
+    [Tooltip("ความโค้งมนของขอบเกาะ (หน่วย cell) 0 = ขอบเหลี่ยมเหมือนเดิม ค่าสูงสุดที่ใช้ได้จริงถูกจำกัดไม่ให้ทางแคบ 1 cell ขาด")]
+    [Range(0f, 1f)] public float edgeRoundness = 0.7f;
+    [Tooltip("ผนังข้างเกาะแบบโค้งลาดลง: ความลึกสุ่มเป็นลอนตามแนวขอบ และผนังเอียงเข้าด้านในค่อยๆ เรียวลง (ใช้แทนผนังตรงถึงก้น/ฐานใต้เกาะ) ต้องเปิด Smooth Slopes")]
+    public bool curvedRim = false;
+    [Tooltip("ความลึกของผนังข้างที่ตื้นที่สุด (world unit)")]
+    [Min(0.1f)] public float rimDepthMin = 2f;
+    [Tooltip("ความลึกของผนังข้างที่ลึกที่สุด (world unit)")]
+    [Min(0.1f)] public float rimDepthMax = 7f;
+    [Tooltip("ความถี่ของ noise ที่สุ่มความลึกตามแนวขอบ (1 / world unit) ยิ่งน้อยยิ่งเป็นลอนยาว")]
+    [Min(0.001f)] public float rimNoiseScale = 0.07f;
+    [Tooltip("ผนังเอียงเข้าด้านในเท่าไรต่อ 1 หน่วยความลึก (0 = ตั้งฉาก, 0.6 = ลึก 1 เอียงเข้า 0.6)")]
+    [Range(0f, 2f)] public float rimTaper = 0.3f;
+
     [Tooltip("material ผนังหน้าผา ถ้าไม่ตั้งค่าจะใช้ material ใต้เกาะ (Underside)")]
     public Material cliffMaterial;
     [Tooltip("แบ่ง mesh พื้น/ทางลาด/หน้าผาเป็นก้อนละกี่ x กี่ cell -> ตอนเนินบัง player จะ fade แค่ก้อนที่บัง (ยิ่งเล็ก fade แม่นขึ้น แต่ object/draw call เยอะขึ้น)")]

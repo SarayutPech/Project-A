@@ -364,16 +364,207 @@ public class TerraceLayout
         return true;
     }
 
+    // ---------- Smooth slopes: height field ต่อเนื่องแทนขั้นบันได ----------
+    // ความสูงเก็บเป็นตารางที่กลาง sub-cell (res x res ต่อ 1 cell) ได้จาก level ของ cell เฉลี่ยด้วย box blur ที่รัศมีแปรตามมุมลาดของแต่ละจุด
+    // (มุมสุ่มในช่วง min..max จาก noise) แล้วบังคับความชันไม่เกิน max อีกรอบ cell ใน fixedCells (ใต้บ่อ) คงความสูงชั้นเดิมเป๊ะ
+    public struct SmoothSettings
+    {
+        public int res;            // sub-cell ต่อด้านของ 1 cell
+        public float minAngle;     // องศา: ลาดที่เกือบราบที่สุด
+        public float maxAngle;     // องศา: ลาดชันที่สุด (เดินได้)
+        public float noiseScale;   // ความถี่ noise (1/world unit) ที่สุ่มมุมลาดระหว่าง min..max
+        public int pad;            // ขอบตารางที่เผื่อรอบ cell (sub-cell)
+    }
+
+    private float[] _sm;
+    private int _smRes, _smX0, _smZ0, _smW, _smH;
+    private float _smSub;
+
+    public bool IsSmooth => _sm != null;
+    public int SmoothRes => _smRes;
+
+    public void BuildSmooth(HashSet<Vector2Int> cells, HashSet<Vector2Int> fixedCells, SmoothSettings s, int seed)
+    {
+        if (cells.Count == 0) return;
+        int res = Mathf.Max(1, s.res);
+        _smRes = res;
+        _smSub = _stepSize / res;
+
+        int minCx = int.MaxValue, minCz = int.MaxValue, maxCx = int.MinValue, maxCz = int.MinValue;
+        foreach (var c in cells)
+        {
+            minCx = Mathf.Min(minCx, c.x); maxCx = Mathf.Max(maxCx, c.x);
+            minCz = Mathf.Min(minCz, c.y); maxCz = Mathf.Max(maxCz, c.y);
+        }
+        int pad = Mathf.Max(1, s.pad);
+        _smX0 = minCx * res - pad; _smZ0 = minCz * res - pad;
+        _smW = (maxCx - minCx + 1) * res + pad * 2;
+        _smH = (maxCz - minCz + 1) * res + pad * 2;
+        int n = _smW * _smH;
+
+        var occ = new bool[n];
+        var fix = new bool[n];
+        var stepped = new float[n];
+        foreach (var c in cells)
+        {
+            float h = BaseHeight(c);
+            bool isFixed = fixedCells != null && fixedCells.Contains(c);
+            for (int sz = 0; sz < res; sz++)
+                for (int sx = 0; sx < res; sx++)
+                {
+                    int i = (c.x * res + sx - _smX0) + (c.y * res + sz - _smZ0) * _smW;
+                    occ[i] = true; fix[i] = isFixed; stepped[i] = h;
+                }
+        }
+
+        // integral image ของ (ความสูง x occ) และ occ -> box average รัศมีใดก็ได้ใน O(1)
+        int iw = _smW + 1;
+        var sumH = new double[iw * (_smH + 1)];
+        var sumO = new double[iw * (_smH + 1)];
+        for (int z = 0; z < _smH; z++)
+            for (int x = 0; x < _smW; x++)
+            {
+                int i = x + z * _smW, k = (x + 1) + (z + 1) * iw;
+                double o = occ[i] ? 1.0 : 0.0, hh = occ[i] ? stepped[i] : 0.0;
+                sumO[k] = o + sumO[k - 1] + sumO[k - iw] - sumO[k - iw - 1];
+                sumH[k] = hh + sumH[k - 1] + sumH[k - iw] - sumH[k - iw - 1];
+            }
+
+        float minA = Mathf.Clamp(s.minAngle, 1f, 80f) * Mathf.Deg2Rad;
+        float maxA = Mathf.Clamp(Mathf.Max(s.maxAngle, s.minAngle), 1f, 80f) * Mathf.Deg2Rad;
+        var rng = new System.Random(seed ^ 0x51F0);
+        float ox = (float)rng.NextDouble() * 1000f, oz = (float)rng.NextDouble() * 1000f;
+
+        var h2 = new float[n];
+        for (int z = 0; z < _smH; z++)
+            for (int x = 0; x < _smW; x++)
+            {
+                int i = x + z * _smW;
+                if (!occ[i]) continue;
+                if (fix[i] || _levelHeight <= 0f) { h2[i] = stepped[i]; continue; }
+
+                float wx = SubCenter(x + _smX0), wz = SubCenter(z + _smZ0);
+                float t = ValueNoise(wx * s.noiseScale + ox, wz * s.noiseScale + oz);
+                float angle = Mathf.Lerp(minA, maxA, t);
+                // box blur กว้าง W เปลี่ยนขั้นสูง h เป็นลาดชัน h/W -> W = h / tan(angle)
+                float width = _levelHeight / Mathf.Tan(angle);
+                int r = Mathf.Max(0, Mathf.RoundToInt(width * 0.5f / _smSub));
+
+                int x0 = Mathf.Max(0, x - r), x1 = Mathf.Min(_smW, x + r + 1);
+                int z0 = Mathf.Max(0, z - r), z1 = Mathf.Min(_smH, z + r + 1);
+                double o = sumO[x1 + z1 * iw] - sumO[x0 + z1 * iw] - sumO[x1 + z0 * iw] + sumO[x0 + z0 * iw];
+                double hs = sumH[x1 + z1 * iw] - sumH[x0 + z1 * iw] - sumH[x1 + z0 * iw] + sumH[x0 + z0 * iw];
+                h2[i] = o > 0.0 ? (float)(hs / o) : stepped[i];
+            }
+
+        // บังคับความชันไม่เกิน max (ไล่หน้า-หลังสลับกัน) cell ที่ fixed ไม่ขยับ เพื่อนบ้านปรับเข้าหามัน
+        float lim4 = Mathf.Tan(maxA) * _smSub, lim8 = lim4 * 1.4142f;
+        for (int iter = 0; iter < 8; iter++)
+        {
+            bool fwd = (iter & 1) == 0;
+            for (int zz = 0; zz < _smH; zz++)
+                for (int xx = 0; xx < _smW; xx++)
+                {
+                    int x = fwd ? xx : _smW - 1 - xx, z = fwd ? zz : _smH - 1 - zz;
+                    int i = x + z * _smW;
+                    if (!occ[i] || fix[i]) continue;
+                    for (int dz = -1; dz <= 1; dz++)
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            if (dx == 0 && dz == 0) continue;
+                            int nx = x + dx, nz = z + dz;
+                            if (nx < 0 || nz < 0 || nx >= _smW || nz >= _smH) continue;
+                            int j = nx + nz * _smW;
+                            if (!occ[j]) continue;
+                            float lim = (dx == 0 || dz == 0) ? lim4 : lim8;
+                            h2[i] = Mathf.Clamp(h2[i], h2[j] - lim, h2[j] + lim);
+                        }
+                }
+        }
+
+        // ขยายค่าออกไปนอก cell (ให้ขอบโค้งมน/ส่วนที่ยื่นออกมามีความสูงใช้ได้)
+        var filled = (bool[])occ.Clone();
+        var addIdx = new List<int>();
+        var addVal = new List<float>();
+        for (int iter = 0; iter < pad * 2 + 2; iter++)
+        {
+            addIdx.Clear(); addVal.Clear();
+            for (int z = 0; z < _smH; z++)
+                for (int x = 0; x < _smW; x++)
+                {
+                    int i = x + z * _smW;
+                    if (filled[i]) continue;
+                    float sum = 0f; int cnt = 0;
+                    if (x > 0 && filled[i - 1]) { sum += h2[i - 1]; cnt++; }
+                    if (x < _smW - 1 && filled[i + 1]) { sum += h2[i + 1]; cnt++; }
+                    if (z > 0 && filled[i - _smW]) { sum += h2[i - _smW]; cnt++; }
+                    if (z < _smH - 1 && filled[i + _smW]) { sum += h2[i + _smW]; cnt++; }
+                    if (cnt > 0) { addIdx.Add(i); addVal.Add(sum / cnt); }
+                }
+            if (addIdx.Count == 0) break;
+            for (int k = 0; k < addIdx.Count; k++) { h2[addIdx[k]] = addVal[k]; filled[addIdx[k]] = true; }
+        }
+        _sm = h2;
+    }
+
+    // world ของกลาง sub-cell ที่ index แบบ global g (แกนใดแกนหนึ่ง)
+    private float SubCenter(int g) => -_stepSize * 0.5f + (g + 0.5f) * _smSub;
+
+    // value noise 0..1 จาก hash ล้วน (ไม่พึ่ง UnityEngine.Random / Mathf.Perlin) -> ผลเหมือนกันทุกเครื่อง
+    private static float ValueNoise(float x, float y)
+    {
+        int ix = Mathf.FloorToInt(x), iy = Mathf.FloorToInt(y);
+        float fx = x - ix, fy = y - iy;
+        fx = fx * fx * (3f - 2f * fx); fy = fy * fy * (3f - 2f * fy);
+        float a = HashTo01(ix, iy), b = HashTo01(ix + 1, iy), c = HashTo01(ix, iy + 1), d = HashTo01(ix + 1, iy + 1);
+        return Mathf.Lerp(Mathf.Lerp(a, b, fx), Mathf.Lerp(c, d, fx), fy);
+    }
+
+    public static float Noise01(float x, float y) => ValueNoise(x, y);
+
+    private static float HashTo01(int x, int y)
+    {
+        unchecked
+        {
+            uint h = (uint)(x * 374761393 + y * 668265263);
+            h = (h ^ (h >> 13)) * 1274126177u;
+            h ^= h >> 16;
+            return (h & 0xFFFFFF) / (float)0x1000000;
+        }
+    }
+
+    // ความสูงที่ตำแหน่ง world (bilinear ระหว่างกลาง sub-cell)
+    public float SmoothHeightAt(float wx, float wz)
+    {
+        float u = (wx + _stepSize * 0.5f) / _smSub - 0.5f - _smX0;
+        float v = (wz + _stepSize * 0.5f) / _smSub - 0.5f - _smZ0;
+        u = Mathf.Clamp(u, 0f, _smW - 1.001f); v = Mathf.Clamp(v, 0f, _smH - 1.001f);
+        int x = (int)u, z = (int)v;
+        float fx = u - x, fz = v - z;
+        int i = x + z * _smW;
+        return Mathf.Lerp(Mathf.Lerp(_sm[i], _sm[i + 1], fx), Mathf.Lerp(_sm[i + _smW], _sm[i + _smW + 1], fx), fz);
+    }
+
+    // normal จากความชันของ height field (ให้ mesh ดูเนียน ไม่เป็นเหลี่ยม)
+    public Vector3 SmoothNormalAt(float wx, float wz)
+    {
+        float e = _smSub * 0.5f;
+        float dx = SmoothHeightAt(wx + e, wz) - SmoothHeightAt(wx - e, wz);
+        float dz = SmoothHeightAt(wx, wz + e) - SmoothHeightAt(wx, wz - e);
+        return new Vector3(-dx, 2f * e, -dz).normalized;
+    }
+
     // ---------- Query ----------
 
     public int GetLevel(Vector2Int cell) => _levels.TryGetValue(cell, out int l) ? l : 0;
-    public bool IsRamp(Vector2Int cell) => _ramps.ContainsKey(cell);
-    public bool IsRampAccess(Vector2Int cell) => _rampAccess.Contains(cell);
+    public bool IsRamp(Vector2Int cell) => _sm == null && _ramps.ContainsKey(cell);
+    public bool IsRampAccess(Vector2Int cell) => _sm == null && _rampAccess.Contains(cell);
     public float BaseHeight(Vector2Int cell) => GetLevel(cell) * _levelHeight;
 
     // local = ตำแหน่งเทียบกับกลาง cell (x, z) อยู่ในช่วง ±stepSize/2
     public float HeightAt(Vector2Int cell, Vector2 local)
     {
+        if (_sm != null) return SmoothHeightAt(cell.x * _stepSize + local.x, cell.y * _stepSize + local.y);
         if (!_ramps.TryGetValue(cell, out Ramp ramp)) return BaseHeight(cell);
 
         float t = Mathf.Clamp01(Vector2.Dot(local, ramp.dir) / _stepSize + 0.5f);

@@ -184,7 +184,8 @@ public partial class ProceduralMapGenerator : MonoBehaviour
 
     private bool RegisterInstance()
     {
-        if (Instance == null || Instance == this)
+        // ตัวเก่าที่ scene ถูกปิดไปแล้ว (เช่นเปิด/ปิด scene แบบ additive ใน editor) ถือว่าไม่มีตัวอยู่ ไม่งั้นตัวจริงโดนปิดแล้วแผนที่ไม่ขึ้น
+        if (Instance == null || Instance == this || !Instance.gameObject.scene.IsValid())
         {
             Instance = this;
             return true;
@@ -285,6 +286,7 @@ public partial class ProceduralMapGenerator : MonoBehaviour
 
         // ใช้ System.Random จาก seed แยกของตัวเอง ไม่แตะลำดับ UnityEngine.Random -> รูปร่าง/บ่อของ seed เดิมไม่เปลี่ยน
         // พื้นใต้บ่อแต่ละบ่อถูกบังคับให้อยู่ชั้นเดียวกัน (บ่อใหญ่แค่ไหนก็อยู่บนที่ราบเสมอ ไม่คร่อมหน้าผา)
+        var holeFootprints = HoleFootprints();
         _terrace = terraces
             ? TerraceLayout.Build(_cells, startCell, endCell, new TerraceLayout.Settings
             {
@@ -293,8 +295,10 @@ public partial class ProceduralMapGenerator : MonoBehaviour
                 levelHeight = Config.terraceHeight,
                 regionSize = Config.terraceRegionSize,
                 flatChance = Config.terraceFlatChance,
-            }, seed, HoleFootprints())
+            }, seed, holeFootprints)
             : TerraceLayout.Flat(stepSize);
+
+        if (Config.smoothSlopes) BuildSmoothHeightField(holeFootprints);
 
         Transform root = ResetGeneratedRoot();
 
@@ -307,7 +311,9 @@ public partial class ProceduralMapGenerator : MonoBehaviour
         BuildGroundMesh(root);
         if (buildUnderside) BuildUnderside(root);
         if (buildBoundaryWalls)
-            BoundaryObject = MapBoundaryBuilder.Build(_cells, stepSize, Terrace.MaxHeight + boundaryWallHeight, boundaryWallThickness, root);
+            BoundaryObject = Terrace.IsSmooth && _smoothOutline.Count > 0
+                ? BuildSmoothBoundary(root, Terrace.MaxHeight + boundaryWallHeight, -1f, boundaryWallThickness)
+                : MapBoundaryBuilder.Build(_cells, stepSize, Terrace.MaxHeight + boundaryWallHeight, boundaryWallThickness, root);
         if (blockWalkingIntoHoles && !walkableWater) BuildHoleBlockers(root);
 
         if (showStartEndMarkers) PlaceMarkers(root, startCell, endCell);

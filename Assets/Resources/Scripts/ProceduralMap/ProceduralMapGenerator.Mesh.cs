@@ -12,6 +12,8 @@ public partial class ProceduralMapGenerator
         public readonly List<Vector3> vertices = new List<Vector3>();
         public readonly List<Vector2> uvs = new List<Vector2>();
         public readonly List<int> triangles = new List<int>();
+        public readonly List<Color> colors = new List<Color>();     // ใช้เฉพาะผนังขอบเกาะแบบ curvedRim (r = 1 ทึบ -> 0 จาง) ว่าง = ไม่ตั้งสี
+        public readonly List<Vector3> normals = new List<Vector3>(); // ใช้เฉพาะโหมด smooth (คำนวณจาก height field) ว่าง = ให้ Unity คำนวณเอง
     }
 
     // พื้น/ทางลาด/หน้าผา แบ่งเป็น chunk ละ terrainChunkSize x terrainChunkSize cell แล้วแยกย่อยตามชั้น (key = x, z, level)
@@ -53,7 +55,8 @@ public partial class ProceduralMapGenerator
             BuildSubdividedGeometry(pitVertices, pitUvs, pitTriangles, waterVertices, waterUvs, waterTriangles);
         else
             BuildSimpleGeometry();
-        BuildCliffs();
+        if (Terrace.IsSmooth) BuildSmoothSurface();
+        else BuildCliffs();
 
         // Generated Ground = กล่องรวม chunk (MapBuildAnimator ยกทั้งก้อนขึ้นพร้อมกัน)
         GroundObject = new GameObject("Generated Ground");
@@ -97,20 +100,20 @@ public partial class ProceduralMapGenerator
             if (markGeneratedStatic) level.isStatic = true;
 
             if (_groundChunks.TryGetValue(key, out var g))
-                CreateGroundPart(level.transform, "Ground", g.vertices, g.uvs, g.triangles, Config.groundPhysicsMaterial);
+                CreateGroundPart(level.transform, "Ground", g.vertices, g.uvs, g.triangles, Config.groundPhysicsMaterial, null, g.normals);
             if (_rampChunks.TryGetValue(key, out var r))
                 CreateGroundPart(level.transform, "Ramps", r.vertices, r.uvs, r.triangles, Config.rampPhysicsMaterial);
             if (_cliffChunks.TryGetValue(key, out var c))
-                CreateGroundPart(level.transform, "Cliffs", c.vertices, c.uvs, c.triangles, Config.cliffPhysicsMaterial, cliffRender);
+                CreateGroundPart(level.transform, "Cliffs", c.vertices, c.uvs, c.triangles, Config.cliffPhysicsMaterial, cliffRender, null, c.colors);
 
             _terrainChunks.Add(level.transform);
         }
     }
 
     private GameObject CreateGroundPart(Transform root, string objName, List<Vector3> vertices, List<Vector2> uvs, List<int> triangles,
-        PhysicsMaterial physicsMaterial, Material renderMaterial = null)
+        PhysicsMaterial physicsMaterial, Material renderMaterial = null, List<Vector3> normals = null, List<Color> colors = null)
     {
-        Mesh mesh = CreateMesh(objName, vertices, uvs, triangles);
+        Mesh mesh = CreateMesh(objName, vertices, uvs, triangles, normals, colors);
 
         var obj = new GameObject(objName);
         obj.transform.SetParent(root, false);
@@ -131,7 +134,7 @@ public partial class ProceduralMapGenerator
         return obj;
     }
 
-    private static Mesh CreateMesh(string meshName, List<Vector3> vertices, List<Vector2> uvs, List<int> triangles)
+    private static Mesh CreateMesh(string meshName, List<Vector3> vertices, List<Vector2> uvs, List<int> triangles, List<Vector3> normals = null, List<Color> colors = null)
     {
         Mesh mesh = new Mesh { name = meshName };
         if (vertices.Count > 65535)
@@ -140,7 +143,9 @@ public partial class ProceduralMapGenerator
         mesh.SetVertices(vertices);
         mesh.SetUVs(0, uvs);
         mesh.SetTriangles(triangles, 0);
-        mesh.RecalculateNormals();
+        if (normals != null && normals.Count == vertices.Count) mesh.SetNormals(normals);
+        else mesh.RecalculateNormals();
+        if (colors != null && colors.Count == vertices.Count) mesh.SetColors(colors);
         mesh.RecalculateBounds();
         mesh.RecalculateTangents();
         return mesh;
@@ -240,14 +245,18 @@ public partial class ProceduralMapGenerator
 
     private void BuildUnderside(Transform root)
     {
+        if (Terrace.IsSmooth && CurvedRim) return; // ผนังข้างแบบโค้งลาดลงสร้างเองแล้ว (skirt) ไม่ต้องมีฐานใต้เกาะ
         float lip = undersideEdgeLip;
         if (addNoiseHoles && holesAsPonds) lip = Mathf.Max(lip, pitDepth + 0.3f); // กันก้นหลุมโผล่ทะลุใต้เกาะ
 
-        Mesh mesh = IslandUndersideBuilder.Build(_cells, new IslandUndersideBuilder.Settings
+        // โหมด smooth: ใช้ footprint ขอบโค้งมนระดับ sub-cell แทน cell เหลี่ยม (ตารางละเอียดขึ้นแล้ว resolution = 1)
+        bool smooth = Terrace.IsSmooth && _smoothFootprint.Count > 0;
+        Mesh mesh = (Terrace.IsSmooth && SmoothCubeBase && _smoothCapMesh != null) ? _smoothCapMesh : IslandUndersideBuilder.Build(smooth ? _smoothFootprint : _cells, new IslandUndersideBuilder.Settings
         {
             shape = undersideType,
-            stepSize = stepSize,
-            resolution = undersideResolution,
+            stepSize = smooth ? _smoothFootprintSize : stepSize,
+            resolution = smooth ? 1 : undersideResolution,
+            originShift = smooth ? _smoothFootprintShift : 0f,
             maxDepth = undersideMaxDepth,
             edgeLip = lip,
             taperDistance = undersideTaperDistance,
@@ -306,6 +315,7 @@ public partial class ProceduralMapGenerator
     // ลง mesh ของ chunk ที่ cell อยู่ ทางลาดแยกเป็นส่วน Ramps (ทางลาดไม่มีรู/บ่อ เพราะ TerraceLayout กันไว้)
     private void AddTerrainQuad(Vector2Int cell, Vector3 center, float half)
     {
+        if (Terrace.IsSmooth) return; // โหมด smooth สร้างผิวพื้นเองใน BuildSmoothSurface (ProceduralMapGenerator.Smooth.cs)
         MeshLists lists = GetChunk(Terrace.IsRamp(cell) ? _rampChunks : _groundChunks, ChunkOf(cell));
         var vertices = lists.vertices;
         var uvs = lists.uvs;

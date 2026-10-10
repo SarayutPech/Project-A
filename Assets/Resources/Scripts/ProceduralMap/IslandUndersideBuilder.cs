@@ -23,6 +23,7 @@ public static class IslandUndersideBuilder
         public float noiseScale;
         public float noiseOffset;
         public float uvScale;         // world unit ต่อ 1 UV
+        public float originShift;     // เลื่อนตารางทั้งหมดบนแกน X/Z (ใช้ตอน cells เป็น sub-cell ของขอบโค้งมน ที่ไม่ตรงกับกรอบ cell ปกติ)
     }
 
     // vertex color.r = ความลึก 0..1 (0 = ขอบบน, 1 = ลึกสุด) ไว้ blend หญ้า/ดิน/หินใน Shader Graph
@@ -32,7 +33,7 @@ public static class IslandUndersideBuilder
 
         int res = Mathf.Max(1, s.resolution);
         float sub = s.stepSize / res;
-        float origin = -s.stepSize * 0.5f;
+        float origin = -s.stepSize * 0.5f + s.originShift;
         float lip = Mathf.Max(0f, s.edgeLip);
         float maxDepth = Mathf.Max(s.maxDepth, lip + 0.1f);
         float taper = Mathf.Max(0.01f, s.taperDistance);
