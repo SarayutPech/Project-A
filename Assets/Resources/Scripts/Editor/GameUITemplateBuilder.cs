@@ -27,7 +27,7 @@ public static partial class GameUITemplateBuilder
     private static readonly Color Gold = new Color(0.93f, 0.85f, 0.66f);
     private static readonly Color SlotColor = new Color(0f, 0f, 0f, 0.55f);
 
-    [MenuItem("Tools/Project-A/Build UI Template")]
+    [MenuItem("Tools/Project-A/UI/Build UI Template")]
     private static void BuildMenu()
     {
         if (File.Exists(PrefabPath) &&
@@ -37,7 +37,7 @@ public static partial class GameUITemplateBuilder
     }
 
     // เพิ่ม component ที่ HUD/กระเป๋าต้องใช้ลง Player.prefab (มีแล้วข้าม) + ช่องสกิลครบ 10
-    [MenuItem("Tools/Project-A/Setup Player Prefab For UI")]
+    [MenuItem("Tools/Project-A/UI/Setup Player Prefab For UI")]
     public static void SetupPlayerPrefab()
     {
         const string path = "Assets/Resources/Gameobject/Player.prefab";
@@ -894,7 +894,7 @@ public static partial class GameUITemplateBuilder
 
     private const string ArtExportFolder = "ArtExport/UI"; // นอก Assets (Unity ไม่ import)
 
-    [MenuItem("Tools/Project-A/Export UI Art List")]
+    [MenuItem("Tools/Project-A/UI/Export UI Art List")]
     public static void ExportArtMenu()
     {
         if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null && AssetDatabase.LoadAssetAtPath<GameObject>(CharacterSelectPrefabPath) == null)

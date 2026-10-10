@@ -71,6 +71,7 @@ public class InventoryWindow : UIWindow<InventoryWindow>, IPlayerUI
         base.Awake();
         if (!IsInstance) return;
         if (rowTemplate != null) rowTemplate.gameObject.SetActive(false);
+        EnsureTab(ItemCategory.PassiveGem, "Passive");
         for (int i = 0; i < tabs.Length; i++)
         {
             var category = tabs[i].category;
@@ -80,6 +81,42 @@ public class InventoryWindow : UIWindow<InventoryWindow>, IPlayerUI
         if (clearSearchButton != null) clearSearchButton.onClick.AddListener(ClearSearch);
         if (sortButton != null) sortButton.onClick.AddListener(Sort);
         SelectTab(CurrentTab);
+    }
+
+    // prefab เก่ายังไม่มีแท็บของหมวดใหม่ -> ทำสำเนาจากแท็บสุดท้าย (ไม่ต้องสร้าง GameUI prefab ใหม่)
+    private void EnsureTab(ItemCategory category, string title)
+    {
+        foreach (var t in tabs) if (t.category == category) return;
+        if (tabs.Length == 0 || tabs[tabs.Length - 1].button == null) return;
+
+        var src = tabs[tabs.Length - 1];
+        var go = Instantiate(src.button.gameObject, src.button.transform.parent);
+        go.name = "Tab_" + category;
+        var copy = new Tab
+        {
+            category = category,
+            title = title,
+            button = go.GetComponent<Button>(),
+            label = go.GetComponentInChildren<TextMeshProUGUI>(true),
+            selected = CloneOf(src.selected, src.button.transform, go.transform),
+        };
+        System.Array.Resize(ref tabs, tabs.Length + 1);
+        tabs[tabs.Length - 1] = copy;
+    }
+
+    // หา object ที่ตรงกับ target (ลูกของ srcRoot) ในสำเนา dstRoot ตามลำดับลูก
+    private static GameObject CloneOf(GameObject target, Transform srcRoot, Transform dstRoot)
+    {
+        if (target == null) return null;
+        var path = new List<int>();
+        for (var t = target.transform; t != null && t != srcRoot; t = t.parent) path.Add(t.GetSiblingIndex());
+        var cur = dstRoot;
+        for (int i = path.Count - 1; i >= 0; i--)
+        {
+            if (path[i] >= cur.childCount) return null;
+            cur = cur.GetChild(path[i]);
+        }
+        return cur.gameObject;
     }
 
     protected override void OnDestroy()
@@ -204,6 +241,7 @@ public class InventoryWindow : UIWindow<InventoryWindow>, IPlayerUI
             case EquipmentItem _: if (!_inventory.RequestEquip(id)) UIToast.Show("Cannot equip"); break;
             case ConsumableItem _: if (!_inventory.RequestUse(id)) UIToast.Show("Not ready yet"); break;
             case SkillGem _: if (SkillGemWindow.Instance != null) SkillGemWindow.Instance.Open(); break;
+            case PassiveGem _: if (PassiveTreeWindow.Instance != null) PassiveTreeWindow.Instance.Open(); break;
         }
         if (ItemTooltip.Instance != null) ItemTooltip.Instance.Hide();
     }

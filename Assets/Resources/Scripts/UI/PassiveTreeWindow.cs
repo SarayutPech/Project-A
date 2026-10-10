@@ -32,12 +32,17 @@ public class PassiveTreeWindow : UIWindow<PassiveTreeWindow>, IPlayerUI, IDragHa
     public Color lineAvailable = new Color(1f, 1f, 1f, 0.35f);
     public Color lineAllocated = new Color(0.95f, 0.8f, 0.4f, 1f);
 
+
     [Header("Header")]
     public TextMeshProUGUI pointsText;
     public Button resetButton;
 
     private PlayerPassives _passives;
+    private PlayerInventory _inventory; // ไว้ฟังกระเป๋า (gem ใน Socket) และเลือก gem ที่จะใส่
+    private PassivePickerPopup _picker;
     private PassiveTree _builtTree;
+    private RectTransform _bgLayer;
+    private readonly List<(Image image, PassiveBackground bg)> _backgrounds = new List<(Image, PassiveBackground)>();
     private float _zoom = 0.5f;
     private readonly Dictionary<string, PassiveNodeView> _views = new Dictionary<string, PassiveNodeView>();
     private readonly List<(Image line, string a, string b)> _lines = new List<(Image, string, string)>();
@@ -63,12 +68,17 @@ public class PassiveTreeWindow : UIWindow<PassiveTreeWindow>, IPlayerUI, IDragHa
         if (_passives != null) _passives.Changed -= OnChanged;
         _passives = player != null ? player.GetComponent<PlayerPassives>() : null;
         if (_passives != null) _passives.Changed += OnChanged;
+        _inventory = player != null ? player.GetComponent<PlayerInventory>() : null;
         Refresh();
     }
 
     protected override void OnOpenChanged(bool open)
     {
-        if (!open) return;
+        if (!open)
+        {
+            if (_picker != null) _picker.Hide();
+            return;
+        }
         Refresh();
         CenterOn(_passives != null ? _passives.StartNode : null);
     }
@@ -89,7 +99,14 @@ public class PassiveTreeWindow : UIWindow<PassiveTreeWindow>, IPlayerUI, IDragHa
             bool available = _passives.CanAllocate(id) || _passives.CanChooseStart(id);
             var node = _passives.Tree.Get(id);
             kv.Value.SetState(allocated, available, node != null && node.isStart);
+            if (node != null && node.type == PassiveNodeType.Socket)
+            {
+                var gem = _passives.GetSocketed(id);
+                kv.Value.SetOverlayIcon(gem.HasValue && gem.Value.Definition != null ? gem.Value.Definition.icon : null);
+            }
         }
+        foreach (var (image, bg) in _backgrounds)
+            if (image != null) image.color = bg.IsLit(_passives.IsAllocated) ? _passives.Tree.backgroundLit : _passives.Tree.backgroundDim;
         foreach (var (line, a, b) in _lines)
         {
             bool ia = _passives.IsAllocated(a), ib = _passives.IsAllocated(b);
@@ -104,6 +121,7 @@ public class PassiveTreeWindow : UIWindow<PassiveTreeWindow>, IPlayerUI, IDragHa
         foreach (var v in _views.Values) if (v != null) Destroy(v.gameObject);
         foreach (var (line, _, _) in _lines) if (line != null) Destroy(line.gameObject);
         _views.Clear();
+        BuildBackgrounds(tree);
         _lines.Clear();
         _builtTree = tree;
 
@@ -129,7 +147,7 @@ public class PassiveTreeWindow : UIWindow<PassiveTreeWindow>, IPlayerUI, IDragHa
         {
             var template = n.type switch
             {
-                PassiveNodeType.Notable => notableTemplate,
+                PassiveNodeType.Notable or PassiveNodeType.Choice or PassiveNodeType.FixedChoice or PassiveNodeType.Socket => notableTemplate,
                 PassiveNodeType.Keystone => keystoneTemplate,
                 _ => smallTemplate,
             };
@@ -140,13 +158,48 @@ public class PassiveTreeWindow : UIWindow<PassiveTreeWindow>, IPlayerUI, IDragHa
             var rt = (RectTransform)view.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.anchoredPosition = n.position;
-            view.Init(n);
+            view.Init(n, tree.FrameOf(n), tree.IconOf(n), tree.StyleOf(n.type));
+            if (tree.nodeSize > 0f) rt.sizeDelta = Vector2.one * tree.nodeSize; // ทุกชนิดขนาดเท่ากัน (ปรับต่อชนิดด้วย scale)
+            rt.localScale = Vector3.one * tree.ScaleOf(n.type);
             view.Clicked = OnNodeClicked;
             view.RightClicked = OnNodeRightClicked;
             view.Hovered = OnNodeHovered;
             _views[n.id] = view;
         }
         ApplyZoom();
+    }
+
+    // ภาพพื้นหลังอยู่หลังเส้นและ node (ชั้นแรกของ content) สีตามว่าลง node ที่กำหนดแล้วหรือยัง (อัปเดตใน Refresh)
+    private void BuildBackgrounds(PassiveTree tree)
+    {
+        foreach (var (image, _) in _backgrounds) if (image != null) Destroy(image.gameObject);
+        _backgrounds.Clear();
+        if (content == null) return;
+        if (_bgLayer == null)
+        {
+            _bgLayer = new GameObject("Backgrounds", typeof(RectTransform)).GetComponent<RectTransform>();
+            _bgLayer.SetParent(content, false);
+            _bgLayer.anchorMin = _bgLayer.anchorMax = new Vector2(0.5f, 0.5f);
+            _bgLayer.sizeDelta = Vector2.zero;
+        }
+        _bgLayer.SetAsFirstSibling();
+
+        foreach (var bg in tree.backgrounds)
+        {
+            if (bg.art == null) continue;
+            var go = new GameObject(string.IsNullOrEmpty(bg.name) ? "Background" : bg.name, typeof(RectTransform), typeof(Image));
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(_bgLayer, false);
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = bg.position;
+            rt.sizeDelta = bg.SizeOrNative;
+            rt.localRotation = Quaternion.Euler(0f, 0f, bg.rotation);
+            var image = go.GetComponent<Image>();
+            image.sprite = bg.art;
+            image.raycastTarget = false;
+            _backgrounds.Add((image, bg));
+        }
     }
 
     private void PlaceLine(RectTransform rt, Vector2 a, Vector2 b)
@@ -164,9 +217,91 @@ public class PassiveTreeWindow : UIWindow<PassiveTreeWindow>, IPlayerUI, IDragHa
     private void OnNodeClicked(PassiveNodeView v)
     {
         if (_passives == null) return;
+        var node = _passives.Tree.Get(v.NodeId);
         if (_passives.CanChooseStart(v.NodeId)) _passives.RequestChooseStart(v.NodeId);
-        else if (!_passives.IsAllocated(v.NodeId) && !_passives.RequestAllocate(v.NodeId))
-            UIToast.Show(_passives.PointsLeft <= 0 ? "No passive points left" : "Must connect to an allocated node");
+        else if (_passives.CanSocket(v.NodeId)) OpenGemPicker(node);
+        else if (!_passives.IsAllocated(v.NodeId))
+        {
+            if (node != null && node.IsChoice && _passives.CanAllocate(v.NodeId)) OpenChoicePicker(node);
+            else if (!_passives.RequestAllocate(v.NodeId))
+                UIToast.Show(_passives.PointsLeft <= 0 ? "No passive points left" : "Must connect to an allocated node");
+        }
+    }
+
+    // ---------- popup เลือก ----------
+
+    private PassivePickerPopup Picker()
+    {
+        if (_picker == null) _picker = PassivePickerPopup.Create(transform, pointsText != null ? pointsText.font : null);
+        return _picker;
+    }
+
+    // node Choice: เลือก 1 ตัวเลือกแล้วลงแต้ม
+    private void OpenChoicePicker(PassiveNode node)
+    {
+        var options = _passives.Tree.ChoicesOf(node);
+        if (options.Count == 0)
+        {
+            UIToast.Show("This node has no choices");
+            return;
+        }
+        var entries = new List<PassivePickerPopup.Entry>();
+        foreach (var c in options)
+        {
+            _sb.Clear();
+            foreach (var m in c.modifiers)
+            {
+                if (_sb.Length > 0) _sb.Append('\n');
+                _sb.Append(StatMath.Describe(m));
+            }
+            entries.Add(new PassivePickerPopup.Entry { title = c.name, detail = _sb.ToString(), icon = _passives.Tree.IconOf(node), color = Color.white });
+        }
+        string id = node.id;
+        var passives = _passives;
+        Picker().Show($"{(string.IsNullOrEmpty(node.displayName) ? "Choose" : node.displayName)} — choose one", entries, index =>
+        {
+            if (!passives.RequestAllocate(id, index)) UIToast.Show("Cannot allocate");
+        });
+    }
+
+    // node Socket: เลือก PassiveGem จากกระเป๋า (ช่องไม่ว่าง = มีรายการ "ถอด gem" ด้วย)
+    private void OpenGemPicker(PassiveNode node)
+    {
+        var entries = new List<PassivePickerPopup.Entry>();
+        var instanceIds = new List<string>(); // ลำดับตรงกับ entries (null = ถอด gem)
+        var current = _passives.GetSocketed(node.id);
+        if (current.HasValue)
+        {
+            entries.Add(new PassivePickerPopup.Entry { title = "Remove gem", detail = current.Value.Definition != null ? current.Value.Definition.displayName : current.Value.itemId, color = new Color(1f, 0.6f, 0.5f) });
+            instanceIds.Add(null);
+        }
+        if (_inventory != null)
+        {
+            foreach (var item in _inventory.Items)
+            {
+                if (!(item.Definition is PassiveGem gem)) continue;
+                entries.Add(new PassivePickerPopup.Entry
+                {
+                    title = $"{gem.displayName}  <size=80%><color=#888>Lv {item.Level}</color></size>",
+                    detail = gem.Describe(item.Level).Replace("\n", "  ·  "),
+                    icon = gem.icon,
+                    color = gem.gemColor,
+                });
+                instanceIds.Add(item.instanceId);
+            }
+        }
+        if (entries.Count == 0)
+        {
+            UIToast.Show("No Passive Gem in inventory");
+            return;
+        }
+        string id = node.id;
+        var passives = _passives;
+        Picker().Show(string.IsNullOrEmpty(node.displayName) ? "Socket a gem" : node.displayName, entries, index =>
+        {
+            bool ok = instanceIds[index] == null ? passives.RequestUnsocketGem(id) : passives.RequestSocketGem(id, instanceIds[index]);
+            if (!ok) UIToast.Show("Cannot socket");
+        });
     }
 
     private void OnNodeRightClicked(PassiveNodeView v)
@@ -182,15 +317,48 @@ public class PassiveTreeWindow : UIWindow<PassiveTreeWindow>, IPlayerUI, IDragHa
         if (n == null) return;
 
         _sb.Clear();
-        foreach (var m in n.modifiers)
+        void Mod(StatModifier m)
         {
             if (_sb.Length > 0) _sb.Append('\n');
             _sb.Append("<color=#8888FF>").Append(StatMath.Describe(m)).Append("</color>");
         }
+        foreach (var m in n.modifiers) Mod(m);
+        bool allocatedNode = _passives.IsAllocated(v.NodeId);
+        if (n.IsChoice)
+        {
+            var chosen = _passives.GetChosen(n);
+            if (chosen != null) foreach (var m in chosen.modifiers) Mod(m);
+            else
+            {
+                if (_sb.Length > 0) _sb.Append('\n');
+                _sb.Append("<color=#CCCCCC>Choose one:</color>");
+                foreach (var c in _passives.Tree.ChoicesOf(n))
+                {
+                    _sb.Append("\n  <color=#FFFFFF>").Append(c.name).Append("</color>");
+                    foreach (var m in c.modifiers) _sb.Append("  <color=#8888FF>").Append(StatMath.Describe(m)).Append("</color>");
+                }
+            }
+        }
+        else if (n.type == PassiveNodeType.Socket)
+        {
+            var socketed = _passives.GetSocketed(v.NodeId);
+            if (_sb.Length > 0) _sb.Append('\n');
+            if (socketed.HasValue && socketed.Value.Definition is PassiveGem sg)
+            {
+                _sb.Append("<color=#CCCCCC>").Append(sg.displayName).Append(" Lv ").Append(socketed.Value.Level).Append("</color>");
+                foreach (var line in sg.Describe(socketed.Value.Level).Split('\n'))
+                    if (line.Length > 0) _sb.Append("\n<color=#8888FF>").Append(line).Append("</color>");
+            }
+            else _sb.Append("<color=#888888>Empty gem socket</color>");
+        }
         if (!string.IsNullOrEmpty(n.description)) _sb.Append("\n\n<i><color=#A69980>").Append(n.description).Append("</color></i>");
 
-        string hint = _passives.IsAllocated(v.NodeId)
-            ? (v.NodeId == _passives.StartNode ? "Starting point" : _passives.CanRefund(v.NodeId) ? "Right-click to refund" : "Other nodes depend on this")
+        string hint = allocatedNode
+            ? (v.NodeId == _passives.StartNode ? "Starting point"
+               : n.type == PassiveNodeType.Socket ? (_passives.CanRefund(v.NodeId) ? "Click to socket a gem / right-click to refund" : "Click to socket a gem")
+               : _passives.CanRefund(v.NodeId) ? (n.IsChoice ? "Right-click to refund and choose again" : "Right-click to refund")
+               : "Other nodes depend on this")
+            : n.IsChoice && _passives.CanAllocate(v.NodeId) ? "Click to choose"
             : _passives.CanChooseStart(v.NodeId) ? "Click to start here"
             : _passives.CanAllocate(v.NodeId) ? "Click to allocate"
             : _passives.PointsLeft <= 0 ? "No passive points" : "Not connected";

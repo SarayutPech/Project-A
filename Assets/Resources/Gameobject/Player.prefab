@@ -124,6 +124,7 @@ MonoBehaviour:
   groundAcceleration: 60
   airAcceleration: 20
   rotationSpeed: 12
+  aimFacingSpeed: 900
   jumpHeight: 1.5
   fallGravityMultiplier: 2
   coyoteTime: 0.1
@@ -1007,6 +1008,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
       insertIndex: -1
       addedObject: {fileID: 8580099466286661492}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 4560755536489085110}
   m_SourcePrefab: {fileID: 100100000, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}
 --- !u!1 &346355914742209019 stripped
 GameObject:
@@ -1106,6 +1110,58 @@ MonoBehaviour:
   fadeOutTime: 0.25
   timeDelay: 0.06
   followSharpness: 18
+--- !u!114 &4560755536489085110
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 346355914742209019}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd4adfc73d1d7964ba6f0d10c60ca3d8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DissolveEffect
+  playOnDeath: 0
+  deathDelay: 1.2
+  playOnSceneTransition: 1
+  transitionDuration: 1.2
+  duration: 2
+  progress:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  edgeColor: {r: 0.3, g: 2.2, b: 3, a: 1}
+  edgeWidth: 0.06
+  noiseCells: 5
+  noiseWeight: 0.45
+  emitParticles: 1
+  particlesPerSecond: 260
+  riseSpeed: 0.7
+  lifetime: {x: 1.2, y: 2.2}
+  dotSize: {x: 0.015, y: 0.035}
+  particleMaterial: {fileID: 0}
+  maxEmitters: 5
 --- !u!4 &1118388533206238017 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: e5f276c11b3bb004cbb5765dbb22c619, type: 3}

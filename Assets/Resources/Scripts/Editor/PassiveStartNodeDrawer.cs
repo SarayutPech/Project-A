@@ -16,7 +16,7 @@ public class PassiveStartNodeDrawer : PropertyDrawer
             return;
         }
 
-        var tree = Resources.Load<PassiveTree>(PassiveTree.DefaultResourcePath);
+        var tree = PassiveTree.LoadActive();
         var ids = new List<string> { "" };
         var names = new List<string> { "(none)" };
         if (tree != null)

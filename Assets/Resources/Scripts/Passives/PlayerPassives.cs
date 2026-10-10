@@ -9,7 +9,7 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerStats))]
 public class PlayerPassives : MonoBehaviour
 {
-    [Tooltip("เว้นว่าง = โหลดจาก Resources/" + PassiveTree.DefaultResourcePath)]
+    [Tooltip("เว้นว่าง = tree ที่เลือกด้วย Use Tree (ไม่มี = Resources/" + PassiveTree.DefaultResourcePath + ")")]
     public PassiveTree tree;
     [Tooltip("แต้มเพิ่มนอกจากที่ได้ตามเลเวล")]
     [Min(0)] public int bonusPoints = 0;
@@ -26,7 +26,9 @@ public class PlayerPassives : MonoBehaviour
     public int PointsLeft => TotalPoints - SpentPoints;
 
     private const string Source = "passive";
+    private const char ChoiceSeparator = '|'; // เซฟ node แบบ Choice เป็น "id|ลำดับตัวเลือก" (node อื่นเป็น id เฉยๆ)
     private readonly HashSet<string> _allocated = new HashSet<string>();
+    private readonly Dictionary<string, int> _choices = new Dictionary<string, int>(); // node Choice ที่ลงแล้ว -> ลำดับตัวเลือก
     private PlayerStats _stats;
     private PlayerExperience _exp;
     private string OwnerId => GameServices.LocalPlayerId; // TODO Netcode: id ของเจ้าของตัวนี้
@@ -35,7 +37,7 @@ public class PlayerPassives : MonoBehaviour
     {
         _stats = GetComponent<PlayerStats>();
         _exp = GetComponent<PlayerExperience>();
-        if (tree == null) tree = Resources.Load<PassiveTree>(PassiveTree.DefaultResourcePath);
+        if (tree == null) tree = PassiveTree.LoadActive();
     }
 
     // โหลดตอน Start: PlayerExperience ต้องโหลดเลเวลเสร็จก่อน (ไม่งั้นแต้มดูเหมือนไม่พอแล้วโดนรีเซ็ต)
@@ -83,18 +85,73 @@ public class PlayerPassives : MonoBehaviour
 
     // ---------- คำขอจาก client ----------
 
-    public bool RequestAllocate(string id)
+    // choice = ลำดับตัวเลือก (ใช้กับ node แบบ Choice เท่านั้น node อื่นไม่สน)
+    public bool RequestAllocate(string id, int choice = 0)
     {
         if (!CanAllocate(id)) return false;
+        var node = tree.Get(id);
+        if (node.IsChoice)
+        {
+            if (choice < 0 || choice >= tree.ChoicesOf(node).Count) return false;
+            _choices[id] = choice;
+        }
         _allocated.Add(id);
         Commit();
         return true;
     }
 
+    // คืนแต้ม node (gem ที่ใส่อยู่กลับกระเป๋าเองใน Apply)
     public bool RequestRefund(string id)
     {
         if (!CanRefund(id)) return false;
         _allocated.Remove(id);
+        _choices.Remove(id);
+        Commit();
+        return true;
+    }
+
+    // ---------- Choice / Socket ----------
+
+    // ตัวเลือกที่ลงไว้ของ node Choice (-1 = ไม่ใช่ node Choice / ยังไม่ลง)
+    public int GetChoice(string id) => id != null && _choices.TryGetValue(id, out var c) ? c : -1;
+
+    public PassiveChoice GetChosen(PassiveNode node)
+    {
+        if (node == null || !node.IsChoice || !_allocated.Contains(node.id)) return null;
+        var choices = tree.ChoicesOf(node);
+        if (choices.Count == 0) return null;
+        return choices[Mathf.Clamp(GetChoice(node.id), 0, choices.Count - 1)];
+    }
+
+    // gem ที่ใส่ใน node Socket นี้ (null = ว่าง)
+    public ItemInstance? GetSocketed(string nodeId)
+    {
+        foreach (var s in GameServices.Inventory.GetPassiveSockets(OwnerId))
+            if (s.nodeId == nodeId) return s.item;
+        return null;
+    }
+
+    public bool CanSocket(string nodeId)
+    {
+        var node = tree != null ? tree.Get(nodeId) : null;
+        return node != null && node.type == PassiveNodeType.Socket && IsAllocated(nodeId);
+    }
+
+    // ใส่ PassiveGem จากกระเป๋าลง node Socket ที่ลงแต้มแล้ว (ของเดิมในช่องกลับกระเป๋า) server ตรวจ node / ชนิด gem / ของมีจริง
+    public bool RequestSocketGem(string nodeId, string instanceId)
+    {
+        if (!CanSocket(nodeId)) return false;
+        var inventory = GameServices.Inventory;
+        if (!inventory.TryGetItem(OwnerId, instanceId, out var inst) || !(inst.Definition is PassiveGem)) return false;
+        if (!inventory.SocketPassive(OwnerId, instanceId, nodeId, out _)) return false;
+        Commit();
+        return true;
+    }
+
+    public bool RequestUnsocketGem(string nodeId)
+    {
+        if (!GetSocketed(nodeId).HasValue) return false;
+        if (!GameServices.Inventory.UnsocketPassive(OwnerId, nodeId, out _)) return false;
         Commit();
         return true;
     }
@@ -103,6 +160,7 @@ public class PlayerPassives : MonoBehaviour
     {
         if (!CanChooseStart(id)) return false;
         _allocated.Clear();
+        _choices.Clear();
         StartNode = id;
         _allocated.Add(id);
         Commit();
@@ -113,6 +171,7 @@ public class PlayerPassives : MonoBehaviour
     public void RequestResetAll()
     {
         _allocated.Clear();
+        _choices.Clear();
         if (StartNode != null) _allocated.Add(StartNode);
         Commit();
     }
@@ -122,15 +181,25 @@ public class PlayerPassives : MonoBehaviour
     private void Load()
     {
         _allocated.Clear();
+        _choices.Clear();
         StartNode = null;
         if (tree == null) return;
 
         // id ที่ไม่มีใน tree แล้ว (แก้ tree ทีหลัง) ถูกทิ้ง
-        foreach (var id in GameServices.Character.LoadPassives(OwnerId))
+        foreach (var raw in GameServices.Character.LoadPassives(OwnerId))
         {
+            string id = raw;
+            int choice = 0;
+            int sep = raw.IndexOf(ChoiceSeparator);
+            if (sep >= 0)
+            {
+                id = raw.Substring(0, sep);
+                int.TryParse(raw.Substring(sep + 1), out choice);
+            }
             var node = tree.Get(id);
             if (node == null) continue;
             _allocated.Add(id);
+            if (node.IsChoice) _choices[id] = choice;
             if (node.isStart && StartNode == null) StartNode = id;
         }
         // race กำหนดจุด start: เซฟที่เริ่มคนละจุด (แก้ race/tree ทีหลัง) -> เริ่มใหม่จากจุดของ race
@@ -138,6 +207,7 @@ public class PlayerPassives : MonoBehaviour
         if (RaceStartNode != null && StartNode != RaceStartNode)
         {
             _allocated.Clear();
+            _choices.Clear();
             StartNode = RaceStartNode;
             _allocated.Add(StartNode);
         }
@@ -175,20 +245,49 @@ public class PlayerPassives : MonoBehaviour
 
     private void Commit()
     {
-        GameServices.Character.SavePassives(OwnerId, new List<string>(_allocated));
+        var saved = new List<string>(_allocated.Count);
+        foreach (var id in _allocated)
+            saved.Add(_choices.TryGetValue(id, out var choice) ? id + ChoiceSeparator + choice : id);
+        GameServices.Character.SavePassives(OwnerId, saved);
         Apply();
         Changed?.Invoke(this);
     }
 
     private void Apply()
     {
+        ReleaseOrphanSockets();
         _stats.RemoveModifiers(Source);
+        var sockets = GameServices.Inventory.GetPassiveSockets(OwnerId);
         foreach (var id in _allocated)
         {
             var node = tree.Get(id);
             if (node == null) continue;
             foreach (var m in node.modifiers) _stats.AddModifier(Source, m);
+
+            var chosen = GetChosen(node);
+            if (chosen != null)
+                foreach (var m in chosen.modifiers) _stats.AddModifier(Source, m);
+
+            if (node.type != PassiveNodeType.Socket) continue;
+            foreach (var s in sockets)
+            {
+                if (s.nodeId != id || !(s.item.Definition is PassiveGem gem)) continue;
+                foreach (var m in gem.modifiers) _stats.AddModifier(Source, gem.Scaled(m, s.item.Level));
+            }
         }
+    }
+
+    // gem ใน node ที่ไม่ได้ลงแต้มแล้ว / ไม่ใช่ Socket แล้ว (คืนแต้ม, รีเซ็ต, แก้ tree) -> กลับกระเป๋า
+    private void ReleaseOrphanSockets()
+    {
+        var inventory = GameServices.Inventory;
+        var orphans = new List<string>();
+        foreach (var s in inventory.GetPassiveSockets(OwnerId))
+        {
+            var node = tree.Get(s.nodeId);
+            if (node == null || node.type != PassiveNodeType.Socket || !_allocated.Contains(s.nodeId)) orphans.Add(s.nodeId);
+        }
+        foreach (var nodeId in orphans) inventory.UnsocketPassive(OwnerId, nodeId, out _);
     }
 
     // node ที่ลงไว้แต่ไม่ต่อถึง start (tree ถูกแก้เส้น) -> ทิ้ง
@@ -197,6 +296,9 @@ public class PlayerPassives : MonoBehaviour
         if (StartNode == null) return;
         var reached = Reachable(null);
         _allocated.RemoveWhere(id => !reached.Contains(id));
+        var stale = new List<string>();
+        foreach (var id in _choices.Keys) if (!_allocated.Contains(id)) stale.Add(id);
+        foreach (var id in stale) _choices.Remove(id);
     }
 
     private bool StillConnectedWithout(string removed)

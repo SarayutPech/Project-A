@@ -30,8 +30,8 @@ MonoBehaviour:
   blendWeightRange: {x: 0.25, y: 0.5}
   mirror: 1
   upperBodyOnly: 0
-  duration: 1.5
-  attackSpeed: 3
+  duration: 2
+  attackSpeed: 1.5
   cooldown: 0.1
   areaOfEffect: 1
   teleportToTarget: 1
@@ -58,6 +58,7 @@ MonoBehaviour:
     arcAngle: 360
     damageMultiplier: 0.5
   moveSlowPercent: 100
+  faceAimWhileActive: 0
   channel: 1
   loopStart: 0.1
   loopEnd: 0.7

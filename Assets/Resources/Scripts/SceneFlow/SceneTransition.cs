@@ -4,7 +4,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 // ตัวจัดการสลับ scene (สร้างตัวเองอัตโนมัติ + DontDestroyOnLoad มีตัวเดียวตลอดเกม)
-// จอดำ fade out -> โหลด scene ใหม่แบบ async -> fade in
+// (ตัวละครสลายเป็นเม็ด ->) จอดำ fade out -> โหลด scene ใหม่แบบ async -> fade in (+ ตัวละครค่อยๆ ปรากฏ) ผ่าน DissolveEffect
 // ใช้ LoadSceneMode.Single: scene เก่าถูก unload ทั้งหมด และ Unity เรียก Resources.UnloadUnusedAssets ให้เอง
 // (mesh/material ที่ generate ตอน runtime ที่ไม่มีใครอ้างอิงแล้วจะถูกล้างด้วย)
 public class SceneTransition : MonoBehaviour
@@ -64,6 +64,17 @@ public class SceneTransition : MonoBehaviour
         IsTransitioning = true;
         if (PlayerMovement.Instance != null) PlayerMovement.Instance.CanMove = false;
 
+        // ตัวละครสลายเป็นเม็ดก่อน รอจบแล้วค่อยดำ (DissolveEffect ที่ติ๊ก playOnSceneTransition) timeout กันค้างถ้าเอฟเฟกต์มีปัญหา
+        if (DissolveEffect.BeginLeaveTransition())
+        {
+            float timeout = 5f;
+            while (DissolveEffect.IsTransitionBusy && timeout > 0f)
+            {
+                timeout -= Time.unscaledDeltaTime;
+                yield return null;
+            }
+        }
+
         yield return Fade(1f);
         if (beforeLoad != null)
         {
@@ -77,6 +88,8 @@ public class SceneTransition : MonoBehaviour
         // รอให้ Awake/Start ของ scene ใหม่ (generate map, spawn player) ทำงานก่อนเปิดจอ
         yield return null;
 
+        // ตัวละครซ่อนอยู่ แล้วค่อยๆ ปรากฏพร้อมจอสว่างขึ้น
+        DissolveEffect.BeginArriveTransition();
         yield return Fade(0f);
         IsTransitioning = false;
     }

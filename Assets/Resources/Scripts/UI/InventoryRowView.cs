@@ -52,12 +52,12 @@ public class InventoryRowView : MonoBehaviour, IPointerEnterHandler, IPointerExi
         {
             string name = def != null ? def.displayName : $"<i>{item.itemId}</i>";
             nameText.text = count > 1 && countText == null ? $"{name}  <color=#CCC>x{count}</color>" : name;
-            nameText.color = def is SkillGem gem ? gem.gemColor : def != null ? rarity : Color.gray;
+            nameText.color = def is SkillGem gem ? gem.gemColor : def is PassiveGem pgem ? pgem.gemColor : def != null ? rarity : Color.gray;
         }
         if (countText != null) countText.text = count > 1 ? count.ToString() : "";
         if (typeText != null)
             typeText.text = def is EquipmentItem eq ? EquipmentItem.SlotName(eq.slot)
-                          : def is SkillGem ? $"{ItemTooltip.CategoryName(def.Category)}  ·  Level {item.Level}"
+                          : def is SkillGem || def is PassiveGem ? $"{ItemTooltip.CategoryName(def.Category)}  ·  Level {item.Level}"
                           : def != null && def.IsStackable && count <= def.StackLimit ? $"{ItemTooltip.CategoryName(def.Category)}  ·  {count} / {def.StackLimit}"
                           : def != null ? ItemTooltip.CategoryName(def.Category) : "";
         if (weightText != null) weightText.text = def != null ? $"{def.weight * count} B" : "";

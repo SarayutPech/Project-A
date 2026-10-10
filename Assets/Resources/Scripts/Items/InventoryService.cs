@@ -20,6 +20,14 @@ public struct SocketedGem
     public ItemInstance item;
 }
 
+// PassiveGem ที่ใส่อยู่ใน node แบบ Socket ของ passive tree (nodeId = id ของ node)
+[System.Serializable]
+public struct PassiveSocketedGem
+{
+    public string nodeId;
+    public ItemInstance item;
+}
+
 // กระเป๋า + ของที่สวมของผู้เล่นแต่ละคน (ที่เก็บข้อมูลอย่างเดียว ไม่ตัดสินกติกาเกม)
 // กติกา (น้ำหนัก, ช่องที่ใส่ได้, cooldown ยา) อยู่ที่ PlayerInventory ฝั่ง server แล้วค่อยเรียก service นี้
 // ตอนนี้ implement แบบ local JSON (LocalInventoryService) ภายหลังเป็น backend โดยโค้ดที่ใช้ไม่ต้องแก้
@@ -54,6 +62,10 @@ public interface IInventoryService
     IReadOnlyList<SocketedGem> GetSocketed(string ownerId);
     bool Socket(string ownerId, string instanceId, int skillSlot, int socket, out ItemInstance previous);
     bool Unsocket(string ownerId, int skillSlot, int socket, out ItemInstance removed);
+    // PassiveGem ใน node Socket ของ passive tree (ย้าย กระเป๋า <-> node เป็น transaction เดียว)
+    IReadOnlyList<PassiveSocketedGem> GetPassiveSockets(string ownerId);
+    bool SocketPassive(string ownerId, string instanceId, string nodeId, out ItemInstance previous);
+    bool UnsocketPassive(string ownerId, string nodeId, out ItemInstance removed);
     // สร้างข้อมูลผู้เล่นใหม่ (ว่าง) ให้ HasData เป็น true
     void EnsureCreated(string ownerId);
     // ลบข้อมูลทั้งหมดของผู้เล่น (ตอนลบตัวละคร) ฝั่ง server เท่านั้น
@@ -70,6 +82,7 @@ public class LocalInventoryService : IInventoryService
         public List<ItemInstance> items = new List<ItemInstance>();
         public List<EquippedItem> equipped = new List<EquippedItem>();
         public List<SocketedGem> socketed = new List<SocketedGem>();
+        public List<PassiveSocketedGem> passiveSockets = new List<PassiveSocketedGem>();
     }
 
     [System.Serializable]
@@ -311,6 +324,50 @@ public class LocalInventoryService : IInventoryService
         if (s < 0) return false;
         removed = owner.socketed[s].item;
         owner.socketed.RemoveAt(s);
+        owner.items.Add(removed);
+        Commit(ownerId);
+        return true;
+    }
+
+    public IReadOnlyList<PassiveSocketedGem> GetPassiveSockets(string ownerId)
+    {
+        var owner = GetOwner(ownerId, false);
+        return owner != null && owner.passiveSockets != null ? owner.passiveSockets : (IReadOnlyList<PassiveSocketedGem>)System.Array.Empty<PassiveSocketedGem>();
+    }
+
+    public bool SocketPassive(string ownerId, string instanceId, string nodeId, out ItemInstance previous)
+    {
+        previous = default;
+        var owner = GetOwner(ownerId, false);
+        if (owner == null || string.IsNullOrEmpty(nodeId)) return false;
+        int i = owner.items.FindIndex(x => x.instanceId == instanceId);
+        if (i < 0) return false;
+        if (owner.passiveSockets == null) owner.passiveSockets = new List<PassiveSocketedGem>();
+
+        ItemInstance item = owner.items[i];
+        owner.items.RemoveAt(i);
+        var entry = new PassiveSocketedGem { nodeId = nodeId, item = item };
+        int s = owner.passiveSockets.FindIndex(x => x.nodeId == nodeId);
+        if (s >= 0)
+        {
+            previous = owner.passiveSockets[s].item;
+            owner.items.Insert(i, previous);
+            owner.passiveSockets[s] = entry;
+        }
+        else owner.passiveSockets.Add(entry);
+        Commit(ownerId);
+        return true;
+    }
+
+    public bool UnsocketPassive(string ownerId, string nodeId, out ItemInstance removed)
+    {
+        removed = default;
+        var owner = GetOwner(ownerId, false);
+        if (owner == null || owner.passiveSockets == null) return false;
+        int s = owner.passiveSockets.FindIndex(x => x.nodeId == nodeId);
+        if (s < 0) return false;
+        removed = owner.passiveSockets[s].item;
+        owner.passiveSockets.RemoveAt(s);
         owner.items.Add(removed);
         Commit(ownerId);
         return true;

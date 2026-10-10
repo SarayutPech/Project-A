@@ -84,6 +84,10 @@ public class ItemTooltip : UISingleton<ItemTooltip>
                 foreach (var line in sg.Describe(level).Split('\n'))
                     if (line.Length > 0) Line(line, modifierColor);
                 break;
+            case PassiveGem pg:
+                foreach (var line in pg.Describe(level).Split('\n'))
+                    if (line.Length > 0) Line(line, modifierColor);
+                break;
         }
         if (!string.IsNullOrEmpty(def.description))
         {
@@ -92,9 +96,10 @@ public class ItemTooltip : UISingleton<ItemTooltip>
         }
 
         string sub = def is EquipmentItem e ? EquipmentItem.SlotName(e.slot)
-                   : def is SkillGem ? $"{CategoryName(def.Category)}  ·  Level {level}"
+                   : def is SkillGem || def is PassiveGem ? $"{CategoryName(def.Category)}  ·  Level {level}"
                    : CategoryName(def.Category);
         if (def is SkillGem gemDef) rarity = gemDef.gemColor;
+        else if (def is PassiveGem passiveDef) rarity = passiveDef.gemColor;
         if (!string.IsNullOrEmpty(header)) sub = $"{header}  ·  {sub}";
         string foot = def.IsStackable
             ? $"Stack: {count} / {def.StackLimit}   Weight: {def.weight} B each ({def.weight * count} B)"
@@ -118,6 +123,7 @@ public class ItemTooltip : UISingleton<ItemTooltip>
         ItemCategory.Usable => "Usable",
         ItemCategory.SkillGem => "Skill Gem",
         ItemCategory.SupportGem => "Support Gem",
+        ItemCategory.PassiveGem => "Passive Gem",
         _ => "Other",
     };
 

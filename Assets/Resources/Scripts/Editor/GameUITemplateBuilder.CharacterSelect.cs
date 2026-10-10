@@ -22,7 +22,7 @@ public static partial class GameUITemplateBuilder
 
     private static readonly Color ScreenColor = new Color(0.035f, 0.03f, 0.028f, 1f);
 
-    [MenuItem("Tools/Project-A/Build Character Select UI")]
+    [MenuItem("Tools/Project-A/Character Select/Build Character Select UI")]
     private static void BuildCharacterSelectMenu()
     {
         if (File.Exists(CharacterSelectPrefabPath) &&
@@ -31,7 +31,7 @@ public static partial class GameUITemplateBuilder
         BuildCharacterSelectUI();
     }
 
-    [MenuItem("Tools/Project-A/Build Character Select Scene")]
+    [MenuItem("Tools/Project-A/Character Select/Build Character Select Scene")]
     private static void BuildCharacterSelectSceneMenu()
     {
         if (File.Exists(CharacterSelectScenePath) &&
@@ -72,7 +72,7 @@ public static partial class GameUITemplateBuilder
 
         Directory.CreateDirectory(CharacterConfigFolder + "/Races");
         var starts = new List<string>();
-        var tree = Resources.Load<PassiveTree>(PassiveTree.DefaultResourcePath);
+        var tree = PassiveTree.LoadActive();
         if (tree != null) foreach (var n in tree.StartNodes) starts.Add(n.id);
 
         config = ScriptableObject.CreateInstance<CharacterCreationConfig>();

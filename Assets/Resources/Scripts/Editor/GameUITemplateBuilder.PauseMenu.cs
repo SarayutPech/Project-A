@@ -8,7 +8,7 @@ using UnityEngine.UI;
 // GameUI.prefab ที่แก้ art ไว้แล้ว: Tools > Project-A > Add Pause Menu To GameUI = เติมเฉพาะ 2 หน้าต่างนี้ (มีแล้วข้าม) ไม่ทับของเดิม
 public static partial class GameUITemplateBuilder
 {
-    [MenuItem("Tools/Project-A/Add Pause Menu To GameUI")]
+    [MenuItem("Tools/Project-A/UI/Add Pause Menu To GameUI")]
     public static void AddPauseMenuToGameUI()
     {
         if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null)

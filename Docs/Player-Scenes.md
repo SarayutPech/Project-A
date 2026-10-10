@@ -18,7 +18,7 @@
 - `OcclusionOutlineController`: objects between camera and player fade / outline / cut out. Per material slot mode Outline / Fade / Cutout. Cutout = `Shaders/OcclusionCutout.hlsl` (Shader Graph custom function, opaque + alpha clip, dithered circle around the player, globals `_OcclusionCutCenter/Radius/Softness`).
 
 ## Scene flow (`Scripts/SceneFlow/`)
-- `SceneTransition.Load(name)`: fade out -> async load (Single) -> fade in. Self-creating, DontDestroyOnLoad.
+- `SceneTransition.Load(name)`: fade out -> async load (Single) -> fade in. Self-creating, DontDestroyOnLoad. Presentation hook: every `DissolveEffect` with `playOnSceneTransition` (the player's Visual) dissolves into dots and shoots up as a light beam BEFORE the fade (waits for it, 5 s timeout), then after the load a beam falls from the sky and the character re-materializes while the screen fades in (unscaled time, works while paused). See Combat-Skills.md `DissolveEffect`.
 - `ClickInteractable` (abstract): walk within `interactRange`, left-click the collider -> `Interact()`. Static `IsInteractableUnder(ray)` lets other click systems skip. Subclasses: `ScenePortal` (warp), `LootChest`.
 
 ## Character select (`Scripts/CharacterSelect/`)

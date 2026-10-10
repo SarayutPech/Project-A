@@ -16,6 +16,7 @@ public enum ItemCategory
     Other = 2,     // อื่นๆ (วัตถุดิบ, ของเควส ฯลฯ)
     SkillGem = 3,  // active skill gem
     SupportGem = 4,
+    PassiveGem = 5, // gem ใส่ node Socket ของ passive tree
 }
 
 // ไอเทม 1 ชนิด (ScriptableObject = ข้อมูลกลาง ไม่ใช่ของที่ผู้เล่นถือ) ของที่ผู้เล่นถือจริงคือ ItemStack (id + จำนวน)
